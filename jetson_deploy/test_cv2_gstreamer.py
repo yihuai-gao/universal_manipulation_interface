@@ -46,7 +46,7 @@ parser = Gst.ElementFactory.make("h264parse", "parser")
 muxer = Gst.ElementFactory.make("qtmux", "muxer")
 
 sink = Gst.ElementFactory.make("filesink", "sink")
-sink.set_property("location", "output_cv.mp4")
+sink.set_property("location", "output_cam.mp4")
 
 # Check for errors
 elements = [appsrc, converter, nvmm_capsfilter, encoder, parser, muxer, sink]
@@ -117,12 +117,6 @@ def capture_and_push_frames():
 
 
 
-loop = GLib.MainLoop()
-bus = pipeline.get_bus()
-bus.add_signal_watch()
-bus.connect("message", bus_call, loop)
-    
-
 # Start playing
 ret = pipeline.set_state(Gst.State.PLAYING)
 if ret == Gst.StateChangeReturn.FAILURE:
@@ -132,11 +126,6 @@ if ret == Gst.StateChangeReturn.FAILURE:
 # Push frames in a loop (You might need to run this in a separate thread or adjust according to your application's architecture)
 
 capture_and_push_frames()
-try:
-    loop.run()
-except:
-    pass
 
-# Clean up
-# thread.join()
+time.sleep(0.1)
 pipeline.set_state(Gst.State.NULL)
