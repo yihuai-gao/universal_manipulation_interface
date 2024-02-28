@@ -23,7 +23,7 @@ def bus_call(bus, message, loop):
 
 class GstreamerPipeline:
 
-    def __init__(self, resolution: tuple[int, int] = (1920, 1080), framerate: int=30):
+    def __init__(self, resolution: tuple[int, int] = (1920, 1080), framerate: int=30, bitrate:int = 8000000):
         Gst.init(None)
         self.pipeline = Gst.Pipeline.new("gst-video-record")
 
@@ -38,7 +38,7 @@ class GstreamerPipeline:
         nvmm_capsfilter.set_property("caps", nvmm_caps)
 
         encoder = Gst.ElementFactory.make("nvv4l2h264enc", "encoder")
-        encoder.set_property("bitrate", 8000000)
+        encoder.set_property("bitrate", bitrate)
 
         parser = Gst.ElementFactory.make("h264parse", "parser")
 
@@ -100,6 +100,7 @@ class GstreamerPipeline:
             self.is_recording = False
 
     def start_recording(self, output_file: str):
+        start_time = time.monotonic()
         self.sink.set_property("location", output_file)
         # self.sink.set_property("location", output_file)
         ret = self.pipeline.set_state(Gst.State.PLAYING)
@@ -109,7 +110,7 @@ class GstreamerPipeline:
         self.is_recording = True
         self.frame_cnt = 0
         self.output_file = output_file
-        print(f"Recording started. Output file: {output_file}")
+        print(f"Recording started. Output file: {output_file}, starting time spent: {time.monotonic() - start_time} s")
 
     def stop_recording(self):
         self.appsrc.emit("end-of-stream")
@@ -133,13 +134,13 @@ class GstreamerPipeline:
 
 
 if __name__ == "__main__":
-    with GstreamerPipeline() as pipeline:
-        cap = cv2.VideoCapture("/dev/video0")
+    with GstreamerPipeline(bitrate=6000000) as pipeline:
+        cap = cv2.VideoCapture("/dev/video2")
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         cap.set(cv2.CAP_PROP_FPS, 30)
 
-        for total_duration_s in [4, 5, 6]:
+        for total_duration_s in [4]:
             pipeline.start_recording(f"test_{total_duration_s}.mp4")
             start_time = time.monotonic()
             while time.monotonic() - start_time < total_duration_s:

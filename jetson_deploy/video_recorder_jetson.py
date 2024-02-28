@@ -7,7 +7,7 @@ import multiprocessing as mp
 from multiprocessing.managers import SharedMemoryManager
 from diffusion_policy.shared_memory.shared_memory_queue import SharedMemoryQueue, Full, Empty
 from umi.common.timestamp_accumulator import get_accumulate_timestamp_idxs
-from gstreamer_pipeline import GstreamerPipeline
+from jetson_deploy.gstreamer_pipeline import GstreamerPipeline
 class VideoRecorderJetson(mp.Process):
     MAX_PATH_LENGTH = 4096 # linux path has a limit of 4096 bytes
     class Command(enum.Enum):
@@ -190,8 +190,6 @@ class VideoRecorderJetson(mp.Process):
         self.next_global_idx = 0
     
 
-    def _init_gst_pipeline(self):
-
 
     def run(self):
         # I'm sorry it has to be this complicated...
@@ -218,7 +216,11 @@ class VideoRecorderJetson(mp.Process):
             
             # ========= recording state ==========
 
-            with GstreamerPipeline(framerate = self.fps) as pipeline:
+            if hasattr(self, 'bit_rate'):
+                bit_rate = self.bit_rate
+            else:
+                bit_rate = 8000*1000
+            with GstreamerPipeline(framerate = self.fps, bitrate=bit_rate) as pipeline:
                 pipeline.start_recording(video_path)
                 # loop
                 while not self.stop_event.is_set():
