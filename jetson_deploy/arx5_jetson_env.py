@@ -24,7 +24,7 @@ from umi.common.pose_util import pose_to_pos_rot
 from umi.common.interpolation_util import get_interp1d, PoseInterpolator
 
 
-class BimanualUmiEnvJetson:
+class Arx5JetsonEnv:
     def __init__(self, 
             # required params
             output_dir,
