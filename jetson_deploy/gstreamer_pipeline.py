@@ -6,7 +6,6 @@ from gi.repository import Gst, GLib # type: ignore
 import numpy.typing as npt
 import cv2
 import sys
-
 def bus_call(bus, message, loop):
     t = message.type
     if t == Gst.MessageType.EOS:
@@ -119,7 +118,6 @@ class GstreamerPipeline:
         self.is_recording = False
         print(f"Recording stopped. {self.frame_cnt} frames recorded")
 
-
     def encode_img(self, img: npt.NDArray[np.uint8]):
         assert img.shape == (self.resolution[1], self.resolution[0], 3), "Image should be of shape (height, width, 3) and in BGR format"
         assert self.is_recording, "Pipeline must be in recording state to encode frames"
@@ -135,18 +133,21 @@ class GstreamerPipeline:
 
 if __name__ == "__main__":
     with GstreamerPipeline(bitrate=6000000) as pipeline:
-        cap = cv2.VideoCapture("/dev/video2")
+        device_path = "/dev/video0"
+        cap = cv2.VideoCapture(device_path)
+        print(f"Capturing from device {device_path}")
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         cap.set(cv2.CAP_PROP_FPS, 30)
 
-        for total_duration_s in [4]:
+        for total_duration_s in [10]:
             pipeline.start_recording(f"test_{total_duration_s}.mp4")
             start_time = time.monotonic()
             while time.monotonic() - start_time < total_duration_s:
                 ret, frame = cap.read()
                 if not ret:
                     print("Failed to capture frame")
+                    time.sleep(0.1)
                     continue
                 pipeline.encode_img(frame)
             pipeline.stop_recording()
