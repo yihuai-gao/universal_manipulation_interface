@@ -213,7 +213,7 @@ def main(input, output, robot_ip, gripper_ip,
     with SharedMemoryManager() as shm_manager:
         with Spacemouse(shm_manager=shm_manager) as sm, \
             KeystrokeCounter() as key_counter, \
-            BimanualUmiEnvJetson(
+            UR5JetsonEnv(
                 output_dir=output,
                 robots_config=robots_config,
                 grippers_config=grippers_config,

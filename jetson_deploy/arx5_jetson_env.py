@@ -6,9 +6,7 @@ import shutil
 import math
 from multiprocessing.managers import SharedMemoryManager
 from jetson_deploy.video_recorder_jetson import VideoRecorderJetson
-from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
-from umi.real_world.wsg_controller import WSGController
-from umi.real_world.franka_interpolation_controller import FrankaInterpolationController
+from jetson_deploy.arx5_controller import Arx5InterpolationController
 from umi.real_world.multi_uvc_camera import MultiUvcCamera, VideoRecorder
 from diffusion_policy.common.timestamp_accumulator import (
     TimestampActionAccumulator,
@@ -29,7 +27,6 @@ class Arx5JetsonEnv:
             # required params
             output_dir,
             robots_config, # list of dict[{robot_type: 'ur5', robot_ip: XXX, obs_latency: 0.0001, action_latency: 0.1, tcp_offset: 0.21}]
-            grippers_config, # list of dict[{gripper_ip: XXX, gripper_port: 1000, obs_latency: 0.01, , action_latency: 0.1}]
             # env params
             frequency=20,
             # obs
@@ -207,60 +204,20 @@ class Arx5JetsonEnv:
             j_init = None
 
         assert len(robots_config) == len(grippers_config)
-        robots: List[RTDEInterpolationController] = list()
-        grippers: List[WSGController] = list()
+        robots: List[Arx5InterpolationController] = list()
         for rc in robots_config:
-            if rc['robot_type'].startswith('ur5'):
-                assert rc['robot_type'] in ['ur5', 'ur5e']
-                this_robot = RTDEInterpolationController(
-                    shm_manager=shm_manager,
-                    robot_ip=rc['robot_ip'],
-                    frequency=500 if rc['robot_type'] == 'ur5e' else 125,
-                    lookahead_time=0.1,
-                    gain=300,
-                    max_pos_speed=max_pos_speed*cube_diag,
-                    max_rot_speed=max_rot_speed*cube_diag,
-                    launch_timeout=3,
-                    tcp_offset_pose=[0, 0, rc['tcp_offset'], 0, 0, 0],
-                    payload_mass=None,
-                    payload_cog=None,
-                    joints_init=j_init,
-                    joints_init_speed=1.05,
-                    soft_real_time=False,
-                    verbose=False,
-                    receive_keys=None,
-                    receive_latency=rc['robot_obs_latency']
-                )
-            elif rc['robot_type'].startswith('franka'):
-                this_robot = FrankaInterpolationController(
-                    shm_manager=shm_manager,
-                    robot_ip=rc['robot_ip'],
-                    frequency=200,
-                    Kx_scale=1.0,
-                    Kxd_scale=np.array([2.0,1.5,2.0,1.0,1.0,1.0]),
-                    verbose=False,
-                    receive_latency=rc['robot_obs_latency']
-                )
-            else:
-                raise NotImplementedError()
-            robots.append(this_robot)
-
-        for gc in grippers_config:
-            this_gripper = WSGController(
-                shm_manager=shm_manager,
-                hostname=gc['gripper_ip'],
-                port=gc['gripper_port'],
-                receive_latency=gc['gripper_obs_latency'],
-                use_meters=True
+            this_robot = Arx5InterpolationController( # TODO:
+                # shm_manager=shm_manager,
+                # robot_ip=rc['robot_ip'],
+                # frequency=200,
+                # receive_latency=rc['robot_obs_latency']
             )
-
-            grippers.append(this_gripper)
+            robots.append(this_robot)
 
         self.camera = camera
         
         self.robots = robots
         self.robots_config = robots_config
-        self.grippers = grippers
         self.grippers_config = grippers_config
 
         self.multi_cam_vis = multi_cam_vis
@@ -295,16 +252,12 @@ class Arx5JetsonEnv:
         ready_flag = self.camera.is_ready
         for robot in self.robots:
             ready_flag = ready_flag and robot.is_ready
-        for gripper in self.grippers:
-            ready_flag = ready_flag and gripper.is_ready
         return ready_flag
     
     def start(self, wait=True):
         self.camera.start(wait=False)
         for robot in self.robots:
             robot.start(wait=False)
-        for gripper in self.grippers:
-            gripper.start(wait=False)
 
         if self.multi_cam_vis is not None:
             self.multi_cam_vis.start(wait=False)
@@ -317,8 +270,6 @@ class Arx5JetsonEnv:
             self.multi_cam_vis.stop(wait=False)
         for robot in self.robots:
             robot.stop(wait=False)
-        for gripper in self.grippers:
-            gripper.stop(wait=False)
         self.camera.stop(wait=False)
         if wait:
             self.stop_wait()
@@ -327,16 +278,12 @@ class Arx5JetsonEnv:
         self.camera.start_wait()
         for robot in self.robots:
             robot.start_wait()
-        for gripper in self.grippers:
-            gripper.start_wait()
         if self.multi_cam_vis is not None:
             self.multi_cam_vis.start_wait()
     
     def stop_wait(self):
         for robot in self.robots:
             robot.stop_wait()
-        for gripper in self.grippers:
-            gripper.stop_wait()
         self.camera.stop_wait()
         if self.multi_cam_vis is not None:
             self.multi_cam_vis.stop_wait()
@@ -377,9 +324,7 @@ class Arx5JetsonEnv:
         # 125/500 hz, robot_receive_timestamp
         for robot in self.robots:
             last_robots_data.append(robot.get_all_state())
-        # 30 hz, gripper_receive_timestamp
-        for gripper in self.grippers:
-            last_grippers_data.append(gripper.get_all_state())
+            last_grippers_data.append(robot.get_all_gripper_state())
 
         # select align_camera_idx
         num_obs_cameras = len(self.robots)
@@ -509,7 +454,7 @@ class Arx5JetsonEnv:
                     pose=r_actions,
                     target_time=new_timestamps[i] - r_latency
                 )
-                gripper.schedule_waypoint(
+                robot.schedule_gripper_waypoint(
                     pos=g_actions,
                     target_time=new_timestamps[i] - g_latency
                 )
@@ -525,7 +470,7 @@ class Arx5JetsonEnv:
         return [robot.get_state() for robot in self.robots]
     
     def get_gripper_state(self):
-        return [gripper.get_state() for gripper in self.grippers]
+        return [robot.get_gripper_state() for robot in self.robots]
 
     # recording API
     def start_episode(self, start_time=None):

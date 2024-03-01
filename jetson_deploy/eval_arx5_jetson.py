@@ -115,10 +115,6 @@ def solve_sphere_collision(ee_poses, robots_config):
 @click.command()
 @click.option('--input', '-i', required=True, help='Path to checkpoint')
 @click.option('--output', '-o', required=True, help='Directory to save recording')
-# @click.option('--robot_ip', '-ri', default='172.24.95.9')
-# @click.option('--gripper_ip', '-gi', default='172.24.95.17')
-# @click.option('--robot_ip', default='172.24.95.8')
-# @click.option('--gripper_ip', default='172.24.95.18')
 @click.option('--robot_ip', default='192.168.0.8')
 @click.option('--gripper_ip', default='192.168.0.18')
 @click.option('--match_dataset', '-m', default=None, help='Dataset used to overlay and adjust initial condition')
@@ -145,11 +141,6 @@ def main(input, output, robot_ip, gripper_ip,
     max_gripper_width = 0.09
     gripper_speed = 0.2
 
-    # tx_left_right = np.array([
-    #     [ 0.99957734,  0.02660812, -0.01171098, -0.03985323],
-    #     [-0.02665026,  0.99963884, -0.00345685, -0.89450665],
-    #     [ 0.01161477,  0.00376749,  0.99992545, -0.02684203],
-    #     [ 0.        ,  0.        ,  0.        ,  1.        ]])
     tx_left_right = np.array([
         [ 0.99996206,  0.00661996,  0.00566226, -0.01676012],
         [-0.00663261,  0.99997554,  0.0022186 , -0.60552492],
@@ -161,6 +152,7 @@ def main(input, output, robot_ip, gripper_ip,
     ckpt_path = input
     if not ckpt_path.endswith('.ckpt'):
         ckpt_path = os.path.join(ckpt_path, 'checkpoints', 'latest.ckpt')
+    print("Loading checkpoint from", ckpt_path)
     payload = torch.load(open(ckpt_path, 'rb'), map_location='cpu', pickle_module=dill)
     cfg = payload['cfg']
     print("model_name:", cfg.policy.obs_encoder.model_name)
@@ -184,12 +176,20 @@ def main(input, output, robot_ip, gripper_ip,
 
     robots_config = [
         {
-            'robot_type': 'ur5e',
-            'robot_ip': '192.168.0.8',
-            'robot_obs_latency': 0.0001, 'robot_action_latency': 0.1, 'tcp_offset': 0.235,
-            'height_threshold': -0.024,
-            'sphere_radius': 0.1, 'sphere_center': [0, -0.06, -0.185],
+            "robot_type": "arx5",
+            "robot_obs_latency": 0.005, # TODO: need to measure
+            "robot_action_latency": 0.1, # TODO: need to measure
+            "height_threshold": 0.0, # TODO: need to measure
+            "sphere_radius": 0.1, # TODO: need to measure
+            "sphere_center": [0, -0.06, -0.185], # TODO: need to measure
         }
+        # {
+        #     'robot_type': 'ur5e',
+        #     'robot_ip': '192.168.0.8',
+        #     'robot_obs_latency': 0.0001, 'robot_action_latency': 0.1, 'tcp_offset': 0.235,
+        #     'height_threshold': -0.024,
+        #     'sphere_radius': 0.1, 'sphere_center': [0, -0.06, -0.185],
+        # }
         # {
         #     'robot_type': 'ur5',
         #     'robot_ip': '192.168.0.9',
@@ -198,25 +198,14 @@ def main(input, output, robot_ip, gripper_ip,
         #     'sphere_radius': 0.1, 'sphere_center': [0, -0.06, -0.185],
         # }
     ]
-    grippers_config = [
-        {
-            'gripper_ip': '192.168.0.18',
-            'gripper_port': 1000, 'gripper_obs_latency': 0.01, 'gripper_action_latency': 0.1
-        }
-        # {
-        #     'gripper_ip': '192.168.0.27',
-        #     'gripper_port': 1000, 'gripper_obs_latency': 0.01, 'gripper_action_latency': 0.1
-        # }
-    ]
 
     print("steps_per_inference:", steps_per_inference)
     with SharedMemoryManager() as shm_manager:
         with Spacemouse(shm_manager=shm_manager) as sm, \
             KeystrokeCounter() as key_counter, \
-            BimanualUmiEnvJetson(
+            Arx5JetsonEnv(
                 output_dir=output,
                 robots_config=robots_config,
-                grippers_config=grippers_config,
                 frequency=frequency,
                 obs_image_resolution=obs_res,
                 obs_float32=True,
@@ -241,6 +230,7 @@ def main(input, output, robot_ip, gripper_ip,
             time.sleep(1.0)
 
             # load match_dataset
+            # Question1: What does match_dataset do?
             episode_first_frame_map = dict()
             match_replay_buffer = None
             if match_dataset is not None:
@@ -264,15 +254,13 @@ def main(input, output, robot_ip, gripper_ip,
             print(f"Loaded initial frame for {len(episode_first_frame_map)} episodes")
 
             # creating model
-            # have to be done after fork to prevent 
-            # duplicating CUDA context with ffmpeg nvenc
             cls = hydra.utils.get_class(cfg._target_)
             workspace = cls(cfg)
             workspace: BaseWorkspace
             workspace.load_payload(payload, exclude_keys=None, include_keys=None)
 
             policy = workspace.model
-            if cfg.training.use_ema:
+            if cfg.training.use_ema: # Question2: What is EMA?
                 policy = workspace.ema_model
             policy.num_inference_steps = 16 # DDIM inference iterations
             obs_pose_rep = cfg.task.pose_repr.obs_pose_repr
@@ -537,7 +525,7 @@ def main(input, output, robot_ip, gripper_ip,
                             np.save(f'{output}/obs/obs_dict_{iter_idx}.npy', obs_dict_np)
                             result = policy.predict_action(obs_dict)
                             raw_action = result['action_pred'][0].detach().to('cpu').numpy()
-                            action = get_real_umi_action(raw_action, obs, action_pose_repr)
+                            action = get_real_umi_action(raw_action, obs, action_pose_repr) # Question3: What does get_real_umi_action do?
                             print('Inference latency:', time.time() - s)
                         
                         # convert policy action to env actions
