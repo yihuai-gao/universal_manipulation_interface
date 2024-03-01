@@ -5,8 +5,8 @@ import time
 import shutil
 import math
 from multiprocessing.managers import SharedMemoryManager
-from jetson_deploy.video_recorder_jetson import VideoRecorderJetson
-from jetson_deploy.arx5_controller import Arx5InterpolationController
+from jetson_deploy.modules.video_recorder_jetson import VideoRecorderJetson
+from jetson_deploy.modules.arx5_controller import Arx5InterpolationController
 from umi.real_world.multi_uvc_camera import MultiUvcCamera, VideoRecorder
 from diffusion_policy.common.timestamp_accumulator import (
     TimestampActionAccumulator,

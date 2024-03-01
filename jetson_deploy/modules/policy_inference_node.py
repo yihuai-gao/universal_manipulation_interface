@@ -8,7 +8,7 @@ import dill
 import hydra
 import zmq
 from line_profiler import profile
-ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(ROOT_DIR)
 os.chdir(ROOT_DIR)
 

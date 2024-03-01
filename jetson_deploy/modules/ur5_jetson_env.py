@@ -5,7 +5,7 @@ import time
 import shutil
 import math
 from multiprocessing.managers import SharedMemoryManager
-from jetson_deploy.video_recorder_jetson import VideoRecorderJetson
+from jetson_deploy.modules.video_recorder_jetson import VideoRecorderJetson
 from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
 from umi.real_world.wsg_controller import WSGController
 from umi.real_world.franka_interpolation_controller import FrankaInterpolationController

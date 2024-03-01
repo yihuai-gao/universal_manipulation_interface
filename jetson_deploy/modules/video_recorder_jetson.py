@@ -7,7 +7,7 @@ import multiprocessing as mp
 from multiprocessing.managers import SharedMemoryManager
 from diffusion_policy.shared_memory.shared_memory_queue import SharedMemoryQueue, Full, Empty
 from umi.common.timestamp_accumulator import get_accumulate_timestamp_idxs
-from jetson_deploy.gstreamer_pipeline import GstreamerPipeline
+from jetson_deploy.modules.gstreamer_pipeline import GstreamerPipeline
 class VideoRecorderJetson(mp.Process):
     MAX_PATH_LENGTH = 4096 # linux path has a limit of 4096 bytes
     class Command(enum.Enum):
