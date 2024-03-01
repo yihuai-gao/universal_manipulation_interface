@@ -40,20 +40,7 @@ import dill
 import hydra
 import numpy as np
 import scipy.spatial.transform as st
-import torch
 from omegaconf import OmegaConf
-import json
-from diffusion_policy.common.replay_buffer import ReplayBuffer
-from diffusion_policy.common.cv2_util import (
-    get_image_transform
-)
-from umi.common.cv_util import (
-    parse_fisheye_intrinsics,
-    FisheyeRectConverter
-)
-from diffusion_policy.common.pytorch_util import dict_apply
-from diffusion_policy.policy.base_image_policy import BaseImagePolicy
-from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from umi.common.precise_sleep import precise_wait
 from umi.real_world.keystroke_counter import (
     KeystrokeCounter, Key, KeyCode
@@ -65,6 +52,8 @@ from umi.real_world.real_inference_util import (get_real_obs_dict,
 from umi.real_world.spacemouse_shared_memory import Spacemouse
 from umi.common.pose_util import pose_to_mat, mat_to_pose
 from jetson_deploy.ur5_jetson_env import UR5JetsonEnv
+
+import zmq
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
@@ -115,12 +104,8 @@ def solve_sphere_collision(ee_poses, robots_config):
 @click.command()
 @click.option('--input', '-i', required=True, help='Path to checkpoint')
 @click.option('--output', '-o', required=True, help='Directory to save recording')
-# @click.option('--robot_ip', '-ri', default='172.24.95.9')
-# @click.option('--gripper_ip', '-gi', default='172.24.95.17')
-# @click.option('--robot_ip', default='172.24.95.8')
-# @click.option('--gripper_ip', default='172.24.95.18')
-@click.option('--robot_ip', default='192.168.0.8')
-@click.option('--gripper_ip', default='192.168.0.18')
+@click.option('--policy_ip', default='localhost')
+@click.option('--policy_port', default=8765)
 @click.option('--match_dataset', '-m', default=None, help='Dataset used to overlay and adjust initial condition')
 @click.option('--match_episode', '-me', default=None, type=int, help='Match specific episode from the match dataset')
 @click.option('--match_camera', '-mc', default=0, type=int)
@@ -135,7 +120,7 @@ def solve_sphere_collision(ee_poses, robots_config):
 @click.option('-sf', '--sim_fov', type=float, default=None)
 @click.option('-ci', '--camera_intrinsics', type=str, default=None)
 @click.option('--mirror_swap', is_flag=True, default=False)
-def main(input, output, robot_ip, gripper_ip, 
+def main(input, output, policy_ip, policy_port, robot_ip, gripper_ip, 
     match_dataset, match_episode, match_camera,
     camera_reorder,
     vis_camera_idx, init_joints, 
@@ -161,8 +146,14 @@ def main(input, output, robot_ip, gripper_ip,
     ckpt_path = input
     if not ckpt_path.endswith('.ckpt'):
         ckpt_path = os.path.join(ckpt_path, 'checkpoints', 'latest.ckpt')
-    payload = torch.load(open(ckpt_path, 'rb'), map_location='cpu', pickle_module=dill)
-    cfg = payload['cfg']
+    cfg_path = ckpt_path.replace('.ckpt', '.yaml')
+    with open(cfg_path, 'r') as f:
+        cfg = OmegaConf.load(f)
+
+    obs_pose_rep = cfg.task.pose_repr.obs_pose_repr
+    action_pose_repr = cfg.task.pose_repr.action_pose_repr
+    print('obs_pose_rep', obs_pose_rep)
+    print('action_pose_repr', action_pose_repr)
     print("model_name:", cfg.policy.obs_encoder.model_name)
     print("dataset_path:", cfg.task.dataset.dataset_path)
 
@@ -170,17 +161,6 @@ def main(input, output, robot_ip, gripper_ip,
     dt = 1/frequency
 
     obs_res = get_real_obs_resolution(cfg.task.shape_meta)
-    # load fisheye converter
-    fisheye_converter = None
-    if sim_fov is not None:
-        assert camera_intrinsics is not None
-        opencv_intr_dict = parse_fisheye_intrinsics(
-            json.load(open(camera_intrinsics, 'r')))
-        fisheye_converter = FisheyeRectConverter(
-            **opencv_intr_dict,
-            out_size=obs_res,
-            out_fov=sim_fov
-        )
 
     robots_config = [
         {
@@ -209,6 +189,10 @@ def main(input, output, robot_ip, gripper_ip,
         # }
     ]
 
+    context = zmq.Context()
+    socket = context.socket(zmq.REQ)
+    socket.connect(f"tcp://{policy_ip}:{policy_port}")
+
     print("steps_per_inference:", steps_per_inference)
     with SharedMemoryManager() as shm_manager:
         with Spacemouse(shm_manager=shm_manager) as sm, \
@@ -230,7 +214,7 @@ def main(input, output, robot_ip, gripper_ip,
                 robot_obs_horizon=cfg.task.shape_meta.obs.robot0_eef_pos.horizon,
                 gripper_obs_horizon=cfg.task.shape_meta.obs.robot0_gripper_width.horizon,
                 no_mirror=no_mirror,
-                fisheye_converter=fisheye_converter,
+                # fisheye_converter=fisheye_converter,
                 mirror_swap=mirror_swap,
                 # action
                 max_pos_speed=2.0,
@@ -240,49 +224,6 @@ def main(input, output, robot_ip, gripper_ip,
             print("Waiting for camera")
             time.sleep(1.0)
 
-            # load match_dataset
-            episode_first_frame_map = dict()
-            match_replay_buffer = None
-            if match_dataset is not None:
-                match_dir = pathlib.Path(match_dataset)
-                match_zarr_path = match_dir.joinpath('replay_buffer.zarr')
-                match_replay_buffer = ReplayBuffer.create_from_path(str(match_zarr_path), mode='r')
-                match_video_dir = match_dir.joinpath('videos')
-                for vid_dir in match_video_dir.glob("*/"):
-                    episode_idx = int(vid_dir.stem)
-                    match_video_path = vid_dir.joinpath(f'{match_camera}.mp4')
-                    if match_video_path.exists():
-                        img = None
-                        with av.open(str(match_video_path)) as container:
-                            stream = container.streams.video[0]
-                            for frame in container.decode(stream):
-                                img = frame.to_ndarray(format='rgb24')
-                                break
-                        # img = VideoFileClip(str(match_video_path)).get_frame(0)
-
-                        episode_first_frame_map[episode_idx] = img
-            print(f"Loaded initial frame for {len(episode_first_frame_map)} episodes")
-
-            # creating model
-            # have to be done after fork to prevent 
-            # duplicating CUDA context with ffmpeg nvenc
-            cls = hydra.utils.get_class(cfg._target_)
-            workspace = cls(cfg)
-            workspace: BaseWorkspace
-            workspace.load_payload(payload, exclude_keys=None, include_keys=None)
-
-            policy = workspace.model
-            if cfg.training.use_ema:
-                policy = workspace.ema_model
-            policy.num_inference_steps = 16 # DDIM inference iterations
-            obs_pose_rep = cfg.task.pose_repr.obs_pose_repr
-            action_pose_repr = cfg.task.pose_repr.action_pose_repr
-            print('obs_pose_rep', obs_pose_rep)
-            print('action_pose_repr', action_pose_repr)
-
-
-            device = torch.device('cuda')
-            policy.eval().to(device)
 
             print("Warming up policy inference")
             obs = env.get_obs()
@@ -293,21 +234,23 @@ def main(input, output, robot_ip, gripper_ip,
                     obs[f'robot{robot_id}_eef_rot_axis_angle']
                 ], axis=-1)[-1]
                 episode_start_pose.append(pose)
-            with torch.no_grad():
-                policy.reset()
-                obs_dict_np = get_real_umi_obs_dict(
-                    env_obs=obs, shape_meta=cfg.task.shape_meta, 
-                    obs_pose_repr=obs_pose_rep,
-                    tx_robot1_robot0=tx_robot1_robot0,
-                    episode_start_pose=episode_start_pose)
-                obs_dict = dict_apply(obs_dict_np, 
-                    lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
-                result = policy.predict_action(obs_dict)
-                action = result['action_pred'][0].detach().to('cpu').numpy()
-                assert action.shape[-1] == 10 * len(robots_config)
-                action = get_real_umi_action(action, obs, action_pose_repr)
-                assert action.shape[-1] == 7 * len(robots_config)
-                del result
+
+            obs_dict_np = get_real_umi_obs_dict(
+                env_obs=obs, shape_meta=cfg.task.shape_meta, 
+                obs_pose_repr=obs_pose_rep,
+                tx_robot1_robot0=tx_robot1_robot0,
+                episode_start_pose=episode_start_pose)
+        
+            socket.send_pyobj(obs_dict_np)
+            print(f"obs_dict_np sent to PolicyInferenceNode at tcp://{policy_ip}:{policy_port}. Waiting for response.")
+            action = socket.recv_pyobj()
+            if type(action) == str:
+                print(f"Inference from PolicyInferenceNode failed: {action}. Please check the model.")
+                exit(1)
+            
+            assert action.shape[-1] == 10 * len(robots_config)
+            action = get_real_umi_action(action, obs, action_pose_repr)
+            assert action.shape[-1] == 7 * len(robots_config)
 
             print('Ready!')
             while True:
@@ -335,19 +278,6 @@ def main(input, output, robot_ip, gripper_ip,
                     # visualize
                     episode_id = env.replay_buffer.n_episodes
                     vis_img = obs[f'camera{match_camera}_rgb'][-1]
-                    match_episode_id = episode_id
-                    if match_episode is not None:
-                        match_episode_id = match_episode
-                    if match_episode_id in episode_first_frame_map:
-                        match_img = episode_first_frame_map[match_episode_id]
-                        ih, iw, _ = match_img.shape
-                        oh, ow, _ = vis_img.shape
-                        tf = get_image_transform(
-                            input_res=(iw, ih), 
-                            output_res=(ow, oh), 
-                            bgr_to_rgb=False)
-                        match_img = tf(match_img).astype(np.float32) / 255
-                        vis_img = (vis_img + match_img) / 2
                     obs_left_img = obs['camera0_rgb'][-1]
                     obs_right_img = obs['camera0_rgb'][-1]
                     vis_img = np.concatenate([obs_left_img, obs_right_img, vis_img], axis=1)
@@ -393,36 +323,6 @@ def main(input, output, robot_ip, gripper_ip,
                             # Prev episode
                             if match_episode is not None:
                                 match_episode = max(match_episode - 1, 0)
-                        elif key_stroke == KeyCode(char='m'):
-                            # move the robot
-                            duration = 3.0
-                            ep = match_replay_buffer.get_episode(match_episode_id)
-
-                            for robot_idx in range(1):
-                                pos = ep[f'robot{robot_idx}_eef_pos'][0]
-                                rot = ep[f'robot{robot_idx}_eef_rot_axis_angle'][0]
-                                grip = ep[f'robot{robot_idx}_gripper_width'][0]
-                                pose = np.concatenate([pos, rot])
-                                env.robots[robot_idx].servoL(pose, duration=duration)
-                                env.grippers[robot_idx].schedule_waypoint(grip, target_time=time.time() + duration)
-                                target_pose[robot_idx] = pose
-                                gripper_target_pos[robot_idx] = grip
-                            time.sleep(duration)
-
-                            # start_t = time.time()
-                            # episode_data = replay_buffer.get_episode(replay_episode)
-                            # time.sleep(max(duration - (time.time() - start_t), 0))
-
-                            # pos = ep['robot0_eef_pos'][0]
-                            # rot = ep['robot0_eef_rot_axis_angle'][0]
-                            # grip = ep['robot0_gripper_width'][0]
-                            # start_pose = np.concatenate([pos, rot])
-                            # start_grip = grip[0]
-                            # env.robot.servoL(start_pose, duration=duration)
-                            # env.gripper.schedule_waypoint(start_grip, target_time=time.time() + duration)
-                            # time.sleep(duration)
-                            # target_pose = start_pose
-                            # gripper_target_pos = start_grip
                         elif key_stroke == Key.backspace:
                             if click.confirm('Are you sure to drop an episode?'):
                                 env.drop_episode()
@@ -491,7 +391,6 @@ def main(input, output, robot_ip, gripper_ip,
                 # ========== policy control loop ==============
                 try:
                     # start episode
-                    policy.reset()
                     start_delay = 1.0
                     eval_t_start = time.time() + start_delay
                     t_start = time.monotonic() + start_delay
@@ -524,21 +423,15 @@ def main(input, output, robot_ip, gripper_ip,
                         print(f'Obs latency {time.time() - obs_timestamps[-1]}')
 
                         # run inference
-                        with torch.no_grad():
-                            s = time.time()
-                            obs_dict_np = get_real_umi_obs_dict(
-                                env_obs=obs, shape_meta=cfg.task.shape_meta, 
-                                obs_pose_repr=obs_pose_rep,
-                                tx_robot1_robot0=tx_robot1_robot0,
-                                episode_start_pose=episode_start_pose)
-                            obs_dict = dict_apply(obs_dict_np, 
-                                lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
-                            os.makedirs(f'{output}/obs', exist_ok=True)
-                            np.save(f'{output}/obs/obs_dict_{iter_idx}.npy', obs_dict_np)
-                            result = policy.predict_action(obs_dict)
-                            raw_action = result['action_pred'][0].detach().to('cpu').numpy()
-                            action = get_real_umi_action(raw_action, obs, action_pose_repr)
-                            print('Inference latency:', time.time() - s)
+                        s = time.time()
+                        socket.send_pyobj(obs_dict_np)
+                        raw_action = socket.recv_pyobj()
+                        if type(raw_action) == str:
+                            print(f"Inference from PolicyInferenceNode failed: {raw_action}. Please check the model.")
+                            env.end_episode()
+                            break
+                        action = get_real_umi_action(raw_action, obs, action_pose_repr)
+                        print('Inference latency:', time.time() - s)
                         
                         # convert policy action to env actions
                         this_target_poses = action
