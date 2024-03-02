@@ -113,9 +113,9 @@ def test_multiple():
     vis_transform = list()
     for path in v4l_paths:
         res = (1920, 1080)
-        fps = 60
+        fps = 30
         buf = 1
-        bit_rate = 3000*1000
+        bit_rate = 6000*1000
         is_mirror = None
         mirror_mask = np.ones((224,224,3),dtype=np.uint8)
         mirror_mask = draw_predefined_mask(
@@ -146,8 +146,10 @@ def test_multiple():
         resolution.append(res)
         capture_fps.append(fps)
         cap_buffer_size.append(buf)
-        video_recorder.append(VideoRecorderJetson.create_hevc_nvenc(
+        video_recorder.append(VideoRecorderJetson(
+            shm_manager=shm_manager,
             fps=fps,
+            codec='h264_nvenc',
             input_pix_fmt='bgr24',
             bit_rate=bit_rate
         ))
@@ -175,10 +177,12 @@ def test_multiple():
         receive_latency=camera_obs_latency,
         cap_buffer_size=cap_buffer_size,
         transform=transform,
-        vis_transform=vis_transform,
+        # vis_transform=vis_transform,
         video_recorder=video_recorder,
         verbose=False
     )
+    print(f"MultiUvcCamera start waiting")
+    camera.start(wait=True)
 
     multi_cam_vis = MultiCameraVisualizer(
         camera=camera,
@@ -192,5 +196,5 @@ def test_multiple():
 
 
 if __name__ == "__main__":
-    test_multiple()
     # test_single()
+    test_multiple()

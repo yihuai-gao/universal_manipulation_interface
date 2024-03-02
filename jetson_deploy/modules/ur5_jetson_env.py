@@ -187,7 +187,7 @@ class UR5JetsonEnv:
             receive_latency=camera_obs_latency,
             cap_buffer_size=cap_buffer_size,
             transform=transform,
-            vis_transform=vis_transform,
+            # vis_transform=vis_transform, # TODO: vis_transform doesn't work?
             video_recorder=video_recorder,
             verbose=False
         )

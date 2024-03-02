@@ -76,7 +76,7 @@ class PolicyInferenceNode:
                 print(f'Error: {e}')
                 action = str(e)
             send_start_time = time.monotonic()
-            socket.send(action)
+            socket.send_pyobj(action)
             print(f'Send time: {time.monotonic() - send_start_time:.3f} s')
     
 @click.command()

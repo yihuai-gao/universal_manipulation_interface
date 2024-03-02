@@ -206,7 +206,6 @@ class UvcCamera(mp.Process):
 
         # open VideoCapture
         cap = cv2.VideoCapture(self.dev_video_path, cv2.CAP_V4L2)
-        
         try:
             # set resolution and fps
             w, h = self.resolution
@@ -216,6 +215,7 @@ class UvcCamera(mp.Process):
             # set fps
             cap.set(cv2.CAP_PROP_BUFFERSIZE, self.cap_buffer_size)
             cap.set(cv2.CAP_PROP_FPS, fps)
+            print(f'UvcCamera {self.dev_video_path} set resolution {w}x{h} and fps {fps}, buffer size {self.cap_buffer_size}')
 
             # put frequency regulation
             put_idx = None
@@ -230,7 +230,7 @@ class UvcCamera(mp.Process):
                 ts = time.time()
                 ret = cap.grab()
                 assert ret
-                
+
                 # directly write into shared memory to avoid copy
                 frame = self.video_recorder.get_img_buffer()
                 ret, frame = cap.retrieve(frame)

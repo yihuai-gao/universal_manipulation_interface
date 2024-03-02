@@ -69,7 +69,7 @@ class MultiUvcCamera:
                 verbose=verbose
             )
 
-        self.cameras = cameras
+        self.cameras: Dict[str, UvcCamera] = cameras
         self.shm_manager = shm_manager
 
     def __enter__(self):

@@ -226,6 +226,9 @@ def main(input, output, policy_ip, policy_port,
 
 
             print("Warming up policy inference")
+            while not env.is_ready:
+                time.sleep(0.1)
+            print("Env is ready")
             obs = env.get_obs()
             episode_start_pose = list()
             for robot_id in range(len(robots_config)):
