@@ -23,7 +23,7 @@ Press "S" to stop evaluation and gain control back.
 import sys
 import os
 
-ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(ROOT_DIR)
 os.chdir(ROOT_DIR)
 
@@ -120,7 +120,7 @@ def solve_sphere_collision(ee_poses, robots_config):
 @click.option('-sf', '--sim_fov', type=float, default=None)
 @click.option('-ci', '--camera_intrinsics', type=str, default=None)
 @click.option('--mirror_swap', is_flag=True, default=False)
-def main(input, output, policy_ip, policy_port, robot_ip, gripper_ip, 
+def main(input, output, policy_ip, policy_port, 
     match_dataset, match_episode, match_camera,
     camera_reorder,
     vis_camera_idx, init_joints, 
@@ -242,11 +242,13 @@ def main(input, output, policy_ip, policy_port, robot_ip, gripper_ip,
                 episode_start_pose=episode_start_pose)
         
             socket.send_pyobj(obs_dict_np)
+            start_time = time.monotonic()
             print(f"obs_dict_np sent to PolicyInferenceNode at tcp://{policy_ip}:{policy_port}. Waiting for response.")
             action = socket.recv_pyobj()
             if type(action) == str:
                 print(f"Inference from PolicyInferenceNode failed: {action}. Please check the model.")
                 exit(1)
+            print(f"Got response from PolicyInferenceNode. Inference time: {time.monotonic() - start_time:.3f} s")
             
             assert action.shape[-1] == 10 * len(robots_config)
             action = get_real_umi_action(action, obs, action_pose_repr)

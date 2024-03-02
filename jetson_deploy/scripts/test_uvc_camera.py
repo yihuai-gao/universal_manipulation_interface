@@ -1,10 +1,12 @@
 import sys
 import os
 
-ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(ROOT_DIR)
 os.chdir(ROOT_DIR)
 
+from jetson_deploy.modules.video_recorder_jetson import VideoRecorderJetson
 import cv2
 import json
 import time
@@ -30,7 +32,7 @@ def test():
         #     thread_type='FRAME',
         #     thread_count=4
         # )
-        video_recorder = VideoRecorder(
+        video_recorder = VideoRecorderJetson(
             shm_manager=shm_manager,
             fps=30,
             codec='h264_nvenc',
@@ -49,11 +51,11 @@ def test():
         ) as camera:
             cv2.setNumThreads(1) 
             
-            video_path = 'data_local/test.mp4'
             rec_start_time = time.time() + 2
-            camera.start_recording(video_path, start_time=rec_start_time)
+            # camera.start_recording(video_path, start_time=rec_start_time)
 
             data = None
+            episode_cnt = 0
             while True:
                 data = camera.get(out=data)
                 t = time.time()
@@ -61,24 +63,23 @@ def test():
                 # print('receive', t - data['receive_timestamp'])
 
                 dt = time.time() - data['timestamp']
-                # print(dt)
                 print(data['camera_capture_timestamp'] - data['camera_receive_timestamp'])
 
                 bgr = data['color']
-                # print(bgr.shape)
-                # cv2.imshow('default', bgr)
-                # key = cv2.pollKey()
-                # if key == ord('q'):
-                #     break
-                # elif key == ord('r'):
-                #     video_path = 'data_local/test.mp4'
-                #     realsense.start_recording(video_path)
-                # elif key == ord('s'):
-                #     realsense.stop_recording()
+                cv2.imshow('default', bgr)
+                key = cv2.pollKey()
+                if key == ord('q'):
+                    break
+                elif key == ord('r'):
+                    video_path = f"test_{episode_cnt}.mp4"
+                    episode_cnt += 1
+                    camera.start_recording(video_path, time.time())
+                    print("Recording started")
+                elif key == ord('s'):
+                    camera.stop_recording()
+                    print("Recording stopped")
                 
                 time.sleep(1/60)
-                if time.time() > (rec_start_time + 5.0):
-                    break
 
 
 if __name__ == "__main__":

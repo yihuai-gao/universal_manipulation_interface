@@ -221,14 +221,13 @@ class VideoRecorderJetson(mp.Process):
             else:
                 bit_rate = 8000*1000
             with GstreamerPipeline(framerate = self.fps, bitrate=bit_rate) as pipeline:
-                # pipeline.start_recording(video_path)
                 # loop
+                pipeline.start_recording(video_path)
                 while not self.stop_event.is_set():
                     try:
                         command = self.cmd_queue.get()
                         cmd = int(command['cmd'])
                         if cmd == self.Command.STOP_RECORDING.value:
-                            # pipeline.stop_recording()
                             break
                         elif cmd == self.Command.START_RECORDING.value:
                             continue
@@ -240,8 +239,9 @@ class VideoRecorderJetson(mp.Process):
                     try:
                         with self.img_queue.get_view() as data:
                             img = data['img']
-                            repeat = data['repeat'] # TODO: ?
-                            # pipeline.encode_img(img)
+                            repeat = data['repeat']
+                            for i in range(repeat):
+                                pipeline.encode_img(img)
                     except Empty:
                         time.sleep(0.1/self.fps)
                         
@@ -250,9 +250,11 @@ class VideoRecorderJetson(mp.Process):
                     while not self.img_queue.empty():
                         with self.img_queue.get_view() as data:
                             img = data['img']
-                            repeat = data['repeat'] # TODO: ?
-                            # pipeline.encode_img(img) 
+                            repeat = data['repeat']
+                            for i in range(repeat):
+                                pipeline.encode_img(img) 
                 except Empty:
                     pass
+                pipeline.stop_recording()
 
 

@@ -112,6 +112,9 @@ class GstreamerPipeline:
         print(f"Recording started. Output file: {output_file}, starting time spent: {time.monotonic() - start_time} s")
 
     def stop_recording(self):
+        if not self.is_recording:
+            print("Pipeline is not in recording state. Command is ignored.")
+            return
         self.appsrc.emit("end-of-stream")
         time.sleep(0.1)
         self.pipeline.set_state(Gst.State.NULL)
@@ -133,7 +136,7 @@ class GstreamerPipeline:
 
 if __name__ == "__main__":
     with GstreamerPipeline(bitrate=6000000) as pipeline:
-        device_path = "/dev/video0"
+        device_path = "/dev/v4l/by-id/usb-Elgato_Elgato_HD60_X_A00XB320216MTR-video-index0"
         cap = cv2.VideoCapture(device_path)
         print(f"Capturing from device {device_path}")
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)

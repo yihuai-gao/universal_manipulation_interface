@@ -68,7 +68,7 @@ while(True):
 
     t_end = time.monotonic()
     print('fps:', 1/(t_end - t_start))
-    time.sleep(0)
+    # time.sleep(0.1)
 # When everything done, release the capture
 cap.release()
 cv2.destroyAllWindows()
