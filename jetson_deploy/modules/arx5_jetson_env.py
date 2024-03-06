@@ -6,7 +6,7 @@ import shutil
 import math
 from multiprocessing.managers import SharedMemoryManager
 from jetson_deploy.modules.video_recorder_jetson import VideoRecorderJetson
-from jetson_deploy.modules.arx5_controller import Arx5InterpolationController
+from jetson_deploy.modules.arx5_controller import Arx5Controller
 from umi.real_world.multi_uvc_camera import MultiUvcCamera, VideoRecorder
 from diffusion_policy.common.timestamp_accumulator import (
     TimestampActionAccumulator,
@@ -43,11 +43,9 @@ class Arx5JetsonEnv:
             # all in steps (relative to frequency)
             camera_down_sample_steps=1,
             robot_down_sample_steps=1,
-            gripper_down_sample_steps=1,
             # all in steps (relative to frequency)
             camera_obs_horizon=2,
             robot_obs_horizon=2,
-            gripper_obs_horizon=2,
             # action
             max_pos_speed=0.25,
             max_rot_speed=0.6,
@@ -203,14 +201,13 @@ class Arx5JetsonEnv:
         if not init_joints:
             j_init = None
 
-        assert len(robots_config) == len(grippers_config)
-        robots: List[Arx5InterpolationController] = list()
+        robots: List[Arx5Controller] = list()
         for rc in robots_config:
-            this_robot = Arx5InterpolationController( # TODO:
-                # shm_manager=shm_manager,
-                # robot_ip=rc['robot_ip'],
-                # frequency=200,
-                # receive_latency=rc['robot_obs_latency']
+            this_robot = Arx5Controller( # TODO:
+                shm_manager=shm_manager,
+                robot_ip=rc['robot_ip'],
+                robot_port = rc['robot_port'],
+                frequency=200,
             )
             robots.append(this_robot)
 
@@ -218,7 +215,6 @@ class Arx5JetsonEnv:
         
         self.robots = robots
         self.robots_config = robots_config
-        self.grippers_config = grippers_config
 
         self.multi_cam_vis = multi_cam_vis
         self.frequency = frequency
@@ -229,10 +225,8 @@ class Arx5JetsonEnv:
         self.camera_obs_latency = camera_obs_latency
         self.camera_down_sample_steps = camera_down_sample_steps
         self.robot_down_sample_steps = robot_down_sample_steps
-        self.gripper_down_sample_steps = gripper_down_sample_steps
         self.camera_obs_horizon = camera_obs_horizon
         self.robot_obs_horizon = robot_obs_horizon
-        self.gripper_obs_horizon = gripper_obs_horizon
         # recording
         self.output_dir = output_dir
         self.video_dir = video_dir
@@ -320,11 +314,9 @@ class Arx5JetsonEnv:
 
         # both have more than n_obs_steps data
         last_robots_data = list()
-        last_grippers_data = list()
         # 125/500 hz, robot_receive_timestamp
         for robot in self.robots:
             last_robots_data.append(robot.get_all_state())
-            last_grippers_data.append(robot.get_all_gripper_state())
 
         # select align_camera_idx
         num_obs_cameras = len(self.robots)
@@ -386,22 +378,6 @@ class Arx5JetsonEnv:
             # update obs_data
             obs_data.update(robot_obs)
 
-        # align gripper obs
-        gripper_obs_timestamps = last_timestamp - (
-            np.arange(self.gripper_obs_horizon)[::-1] * self.gripper_down_sample_steps * dt)
-        for robot_idx, last_gripper_data in enumerate(last_grippers_data):
-            # align gripper obs
-            gripper_interpolator = get_interp1d(
-                t=last_gripper_data['gripper_timestamp'],
-                x=last_gripper_data['gripper_position'][...,None]
-            )
-            gripper_obs = {
-                f'robot{robot_idx}_gripper_width': gripper_interpolator(gripper_obs_timestamps)
-            }
-
-            # update obs_data
-            obs_data.update(gripper_obs)
-
         # accumulate obs
         if self.obs_accumulator is not None:
             for robot_idx, last_robot_data in enumerate(last_robots_data):
@@ -412,14 +388,6 @@ class Arx5JetsonEnv:
                         f'robot{robot_idx}_joint_vel': last_robot_data['ActualQd'],
                     },
                     timestamps=last_robot_data['robot_timestamp']
-                )
-
-            for robot_idx, last_gripper_data in enumerate(last_grippers_data):
-                self.obs_accumulator.put(
-                    data={
-                        f'robot{robot_idx}_gripper_width': last_gripper_data['gripper_position'][...,None]
-                    },
-                    timestamps=last_gripper_data['gripper_timestamp']
                 )
 
         return obs_data
@@ -445,18 +413,12 @@ class Arx5JetsonEnv:
 
         # schedule waypoints
         for i in range(len(new_actions)):
-            for robot_idx, (robot, gripper, rc, gc) in enumerate(zip(self.robots, self.grippers, self.robots_config, self.grippers_config)):
+            for robot_idx, (robot, rc) in enumerate(zip(self.robots, self.robots_config)):
                 r_latency = rc['robot_action_latency'] if compensate_latency else 0.0
-                g_latency = gc['gripper_action_latency'] if compensate_latency else 0.0
                 r_actions = new_actions[i, 7 * robot_idx + 0: 7 * robot_idx + 6]
-                g_actions = new_actions[i, 7 * robot_idx + 6]
                 robot.schedule_waypoint(
                     pose=r_actions,
                     target_time=new_timestamps[i] - r_latency
-                )
-                robot.schedule_gripper_waypoint(
-                    pos=g_actions,
-                    target_time=new_timestamps[i] - g_latency
                 )
 
         # record actions
@@ -469,8 +431,6 @@ class Arx5JetsonEnv:
     def get_robot_state(self):
         return [robot.get_state() for robot in self.robots]
     
-    def get_gripper_state(self):
-        return [robot.get_gripper_state() for robot in self.robots]
 
     # recording API
     def start_episode(self, start_time=None):

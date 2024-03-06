@@ -185,9 +185,12 @@ class PoseTrajectoryInterpolator:
         return final_interp
 
 
-    def __call__(self, t: Union[numbers.Number, np.ndarray]) -> np.ndarray:
+    def __call__(self, t: Union[float, np.ndarray]) -> np.ndarray:
         is_single = False
-        if isinstance(t, numbers.Number):
+        if isinstance(t, int):
+            is_single = True
+            t = np.array([t])
+        if isinstance(t, float):
             is_single = True
             t = np.array([t])
         
