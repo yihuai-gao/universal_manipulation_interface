@@ -104,7 +104,7 @@ def solve_sphere_collision(ee_poses, robots_config):
 @click.option('--input', '-i', required=True, help='Path to checkpoint')
 @click.option('--output', '-o', required=True, help='Directory to save recording')
 @click.option('--policy_ip', default='localhost')
-@click.option('--policy_port', default=8765)
+@click.option('--policy_port', default=8766)
 @click.option('--match_dataset', '-m', default=None, help='Dataset used to overlay and adjust initial condition')
 @click.option('--match_episode', '-me', default=None, type=int, help='Match specific episode from the match dataset')
 @click.option('--match_camera', '-mc', default=0, type=int)
@@ -159,6 +159,8 @@ def main(input, output, policy_ip, policy_port,
     robots_config = [
         {
             "robot_type": "arx5",
+            "robot_ip": "yihuai-adapter1.stanford.edu",
+            "robot_port": 8765,
             "robot_obs_latency": 0.005, # TODO: need to measure
             "robot_action_latency": 0.1, # TODO: need to measure
             "height_threshold": 0.0, # TODO: need to measure
@@ -189,7 +191,6 @@ def main(input, output, policy_ip, policy_port,
                 # obs
                 camera_obs_horizon=cfg.task.shape_meta.obs.camera0_rgb.horizon,
                 robot_obs_horizon=cfg.task.shape_meta.obs.robot0_eef_pos.horizon,
-                gripper_obs_horizon=cfg.task.shape_meta.obs.robot0_gripper_width.horizon,
                 no_mirror=no_mirror,
                 # fisheye_converter=fisheye_converter,
                 mirror_swap=mirror_swap,
@@ -201,11 +202,25 @@ def main(input, output, policy_ip, policy_port,
             print("Waiting for camera")
             time.sleep(1.0)
 
-            print("Warming up policy inference")
-
+            print("Waiting for env ready.")
             while not env.is_ready:
                 time.sleep(0.1)
             print("Env is ready")
+
+            print(f"Warming up video recording")
+            video_dir = env.video_dir.joinpath("test")
+            video_dir.mkdir(exist_ok=True, parents=True)
+            n_cameras = env.camera.n_cameras
+            video_paths = []
+            for i in range(n_cameras):
+                video_path = str(video_dir.joinpath(f"{i}.mp4").absolute())
+                video_paths.append(video_path)
+            env.camera.start_recording(
+                video_path=video_paths,
+                start_time=time.time())
+            
+
+            print(f"Warming up policy inference")
             obs = env.get_obs()
             episode_start_pose = list()
             for robot_id in range(len(robots_config)):
@@ -221,13 +236,16 @@ def main(input, output, policy_ip, policy_port,
                 episode_start_pose=episode_start_pose)
         
             socket.send_pyobj(obs_dict_np)
+            print(f"    obs_dict_np sent to PolicyInferenceNode at tcp://{policy_ip}:{policy_port}. Waiting for response.")
             start_time = time.monotonic()
-            print(f"obs_dict_np sent to PolicyInferenceNode at tcp://{policy_ip}:{policy_port}. Waiting for response.")
             action = socket.recv_pyobj()
             if type(action) == str:
                 print(f"Inference from PolicyInferenceNode failed: {action}. Please check the model.")
                 exit(1)
             print(f"Got response from PolicyInferenceNode. Inference time: {time.monotonic() - start_time:.3f} s")
+
+            env.camera.stop_recording()
+            print(f"Warming up video recording finished. Video stored to {env.video_dir.joinpath(str(0))}")
             
             assert action.shape[-1] == 10 * len(robots_config)
             action = get_real_umi_action(action, obs, action_pose_repr)
@@ -238,10 +256,9 @@ def main(input, output, policy_ip, policy_port,
                 # ========= human control loop ==========
                 print("Human in control!")
                 robot_states = env.get_robot_state()
-                target_pose = np.stack([rs['TargetTCPPose'] for rs in robot_states])
+                target_pose = np.stack([rs['ActualTCPPose'] for rs in robot_states])
 
-                gripper_states = env.get_gripper_state()
-                gripper_target_pos = np.asarray([gs['gripper_position'] for gs in gripper_states])
+                gripper_target_pos = np.asarray([rs['gripper_position'] for rs in robot_states])
                 
                 control_robot_idx_list = [0]
 

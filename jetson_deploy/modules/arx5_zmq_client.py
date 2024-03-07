@@ -32,8 +32,10 @@ class Arx5Client:
     def get_state(self):
         reply_msg = self.send({"cmd": "GET_STATE", "data": None})
         assert reply_msg["cmd"] == "GET_STATE"
-        assert isinstance(reply_msg.data, dict)
-        state = cast(dict[str, Union[npt.NDArray[np.float64], float]], reply_msg.data)
+        assert isinstance(reply_msg["data"], dict)
+        state = cast(
+            dict[str, Union[npt.NDArray[np.float64], float]], reply_msg["data"]
+        )
         self.latest_state = state
         return state
 

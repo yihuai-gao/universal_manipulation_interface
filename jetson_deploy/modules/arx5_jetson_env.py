@@ -370,13 +370,22 @@ class Arx5JetsonEnv:
             robot_pose_interpolator = PoseInterpolator(
                 t=last_robot_data['robot_timestamp'], 
                 x=last_robot_data['ActualTCPPose'])
+            gripper_pos_interpolator = get_interp1d(
+                t=last_robot_data['robot_timestamp'],
+                x = last_robot_data['gripper_position'][...,None]
+            )
             robot_pose = robot_pose_interpolator(robot_obs_timestamps)
+            gripper_pos = gripper_pos_interpolator(robot_obs_timestamps)
             robot_obs = {
                 f'robot{robot_idx}_eef_pos': robot_pose[...,:3],
-                f'robot{robot_idx}_eef_rot_axis_angle': robot_pose[...,3:]
+                f'robot{robot_idx}_eef_rot_axis_angle': robot_pose[...,3:],
+                f'robot{robot_idx}_gripper_width': gripper_pos
             }
+            
             # update obs_data
             obs_data.update(robot_obs)
+
+
 
         # accumulate obs
         if self.obs_accumulator is not None:
@@ -416,8 +425,10 @@ class Arx5JetsonEnv:
             for robot_idx, (robot, rc) in enumerate(zip(self.robots, self.robots_config)):
                 r_latency = rc['robot_action_latency'] if compensate_latency else 0.0
                 r_actions = new_actions[i, 7 * robot_idx + 0: 7 * robot_idx + 6]
+                g_actions = new_actions[i, 7 * robot_idx + 6]
                 robot.schedule_waypoint(
                     pose=r_actions,
+                    gripper_pos=g_actions,
                     target_time=new_timestamps[i] - r_latency
                 )
 

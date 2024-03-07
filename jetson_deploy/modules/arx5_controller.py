@@ -12,7 +12,7 @@ from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.common.pose_trajectory_interpolator import PoseTrajectoryInterpolator
 import time
 import zmq
-from arx5_zmq_client import Arx5Client
+from jetson_deploy.modules.arx5_zmq_client import Arx5Client
 import numpy.typing as npt
 class Command(enum.Enum):
     STOP = 0
@@ -59,13 +59,15 @@ class Arx5Controller(mp.Process):
             ('ActualTCPPose', 'ee_pose'),
             ('ActualQ', 'joint_pos'),
             ('ActualQd','joint_vel'),
+            ('gripper_position', 'gripper_pos'),
         ]
         example = dict()
         for key, func_name in receive_keys:
             if 'joint' in func_name:
-                example[key] = np.zeros(7)
+                example[key] = np.zeros(6)
             elif 'ee_pose' in func_name:
                 example[key] = np.zeros(6)
+        example['gripper_position'] = 0.0
 
         example['robot_receive_timestamp'] = time.time()
         example['robot_timestamp'] = time.time()
@@ -139,11 +141,36 @@ class Arx5Controller(mp.Process):
     def get_all_state(self):
         return self.ring_buffer.get_all()
     
+
     # ========= command methods ============
+    def servoL(self, pose:npt.NDArray[np.float64], gripper_pos: float, duration=0.1):
+        """
+        duration: desired time to reach pose
+        """
+        assert self.is_alive()
+        assert(duration >= (1/self.frequency))
+        pose = np.array(pose)
+        assert pose.shape == (6,)
 
+        message = {
+            'cmd': Command.SERVOL.value,
+            'target_pose': pose,
+            'gripper_pos': gripper_pos,
+            'duration': duration
+        }
+        self.input_queue.put(message)
+    
+    def schedule_waypoint(self, pose:npt.NDArray[np.float64], gripper_pos: float, target_time: float):
+        pose = np.array(pose)
+        assert pose.shape == (6,)
 
-    def schedule_waypoint(self):
-        ...
+        message = {
+            'cmd': Command.SCHEDULE_WAYPOINT.value,
+            'target_pose': pose,
+            'gripper_pos': gripper_pos,
+            'target_time': target_time
+        }
+        self.input_queue.put(message)
 
     
 
@@ -156,9 +183,9 @@ class Arx5Controller(mp.Process):
                 print("[Arx5Controller] Controller process is ready")
             
             dt = 1/self.frequency
-            curr_state = self.robot_client.get_state()
-            curr_pose = cast(npt.NDArray[np.float64], curr_state['ee_pose'])
-            curr_gripper_pos = cast(float, curr_state['gripper_pos'])
+            self.robot_client.get_state()
+            curr_pose = self.robot_client.ee_pose
+            curr_gripper_pos = self.robot_client.gripper_pos
             curr_t = time.monotonic()
             last_waypoint_time = curr_t
             pose_interp = PoseTrajectoryInterpolator(
@@ -178,7 +205,8 @@ class Arx5Controller(mp.Process):
                 t_now = time.monotonic()
                 pose_cmd = pose_interp(t_now)
                 gripper_cmd = float(gripper_pos_interp(t_now)[0])
-                self.robot_client.set_ee_pose(pose_cmd, gripper_cmd)
+                # self.robot_client.set_ee_pose(pose_cmd, gripper_cmd)
+                self.robot_client.get_state()
 
                 state = dict()
                 for key, func_name in self.receive_keys:

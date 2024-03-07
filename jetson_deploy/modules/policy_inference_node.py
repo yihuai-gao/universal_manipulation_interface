@@ -17,6 +17,15 @@ from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from umi.real_world.real_inference_util import get_real_obs_resolution, get_real_umi_action
 from diffusion_policy.common.pytorch_util import dict_apply
 import omegaconf
+import traceback
+
+def echo_exception():
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+    # Extract unformatted traceback
+    tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+    # Print line of code where the exception occurred
+
+    return "".join(tb_lines)
 class PolicyInferenceNode:
     def __init__(self, ckpt_path: str, ip: str, port: int):
         self.ckpt_path = ckpt_path
@@ -73,8 +82,9 @@ class PolicyInferenceNode:
                 action = self.predict_action(obs_dict_np)
                 print(f'Inference time: {time.monotonic() - start_time:.3f} s')
             except Exception as e:
-                print(f'Error: {e}')
-                action = str(e)
+                err_str = echo_exception()
+                print(f'Error: {err_str}')
+                action = err_str
             send_start_time = time.monotonic()
             socket.send_pyobj(action)
             print(f'Send time: {time.monotonic() - send_start_time:.3f} s')
@@ -82,7 +92,7 @@ class PolicyInferenceNode:
 @click.command()
 @click.option('--input', '-i', required=True, help='Path to checkpoint')
 @click.option('--ip', default="localhost")
-@click.option('--port', default=8765, help="Port to listen on")
+@click.option('--port', default=8766, help="Port to listen on")
 def main(input, ip, port):
     node = PolicyInferenceNode(input, ip, port)
     node.run_node()
