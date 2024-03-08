@@ -402,14 +402,10 @@ def main(input, output, policy_ip, policy_port,
                         action[7 * robot_idx + 0: 7 * robot_idx + 6] = target_pose[robot_idx]
                         action[7 * robot_idx + 6] = gripper_target_pos[robot_idx]
 
-                    if t_command_target < time.monotonic():
-                        teleop_timestamp = time.monotonic() + 0.1
-                    else:
-                        teleop_timestamp = t_command_target
                     # execute teleop command
                     env.exec_actions(
                         actions=[action], 
-                        timestamps=[teleop_timestamp-time.monotonic()+time.time()],
+                        timestamps=[t_command_target-time.monotonic()+time.time()],
                         compensate_latency=False)
                     precise_wait(t_cycle_end)
                     iter_idx += 1
@@ -450,6 +446,11 @@ def main(input, output, policy_ip, policy_port,
 
                         # run inference
                         s = time.time()
+                        obs_dict_np = get_real_umi_obs_dict(
+                            env_obs=obs, shape_meta=cfg.task.shape_meta, 
+                            obs_pose_repr=obs_pose_rep,
+                            tx_robot1_robot0=tx_robot1_robot0,
+                            episode_start_pose=episode_start_pose)
                         socket.send_pyobj(obs_dict_np)
                         raw_action = socket.recv_pyobj()
                         if type(raw_action) == str:

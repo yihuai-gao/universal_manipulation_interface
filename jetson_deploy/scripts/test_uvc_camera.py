@@ -177,7 +177,7 @@ def test_multiple():
         receive_latency=camera_obs_latency,
         cap_buffer_size=cap_buffer_size,
         transform=transform,
-        # vis_transform=vis_transform,
+        vis_transform=vis_transform,
         video_recorder=video_recorder,
         verbose=False
     )

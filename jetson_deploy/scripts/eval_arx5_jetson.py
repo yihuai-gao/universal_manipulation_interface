@@ -425,6 +425,11 @@ def main(input, output, policy_ip, policy_port,
 
                         # run inference
                         s = time.time()
+                        obs_dict_np = get_real_umi_obs_dict(
+                            env_obs=obs, shape_meta=cfg.task.shape_meta, 
+                            obs_pose_repr=obs_pose_rep,
+                            tx_robot1_robot0=tx_robot1_robot0,
+                            episode_start_pose=episode_start_pose)
                         socket.send_pyobj(obs_dict_np)
                         raw_action = socket.recv_pyobj()
                         if type(raw_action) == str:

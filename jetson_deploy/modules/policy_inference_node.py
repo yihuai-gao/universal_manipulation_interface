@@ -7,7 +7,6 @@ import torch
 import dill
 import hydra
 import zmq
-from line_profiler import profile
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(ROOT_DIR)
 os.chdir(ROOT_DIR)
@@ -41,19 +40,23 @@ class PolicyInferenceNode:
         print(f"Loading configure: {self.cfg.name}, workspace: {self.cfg._target_}, policy: {self.cfg.policy._target_}, model_name: {self.cfg.policy.obs_encoder.model_name}")
         self.obs_res = get_real_obs_resolution(self.cfg.task.shape_meta)
         self.get_class_start_time = time.monotonic()
+
         cls = hydra.utils.get_class(self.cfg._target_)
         self.workspace = cls(self.cfg)
         self.workspace: BaseWorkspace
-        self.workspace.load_payload(payload, exclude_keys=["traced_model"], include_keys=None)
+        self.workspace.load_payload(payload, exclude_keys=None, include_keys=None)
+
         self.policy:BaseImagePolicy = self.workspace.model
         if self.cfg.training.use_ema:
             self.policy = self.workspace.ema_model
             print("Using EMA model")
         self.policy.num_inference_steps = 16
+        
         obs_pose_rep = self.cfg.task.pose_repr.obs_pose_repr
         action_pose_repr = self.cfg.task.pose_repr.action_pose_repr
         print('obs_pose_rep', obs_pose_rep)
         print('action_pose_repr', action_pose_repr)
+        
         self.device = torch.device('cuda')
         self.policy.eval().to(self.device)
         self.policy.reset()
