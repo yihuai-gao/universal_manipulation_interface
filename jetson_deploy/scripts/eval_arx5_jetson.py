@@ -126,8 +126,10 @@ def main(input, output, policy_ip, policy_port,
     steps_per_inference, max_duration,
     frequency, command_latency, 
     no_mirror, sim_fov, camera_intrinsics, mirror_swap):
-    max_gripper_width = 0.09
+    max_gripper_width = 1.0
     gripper_speed = 0.2
+    cartesian_speed = 0.2
+    orientation_speed = 0.4
 
     tx_left_right = np.array([
         [ 0.99996206,  0.00661996,  0.00566226, -0.01676012],
@@ -339,8 +341,8 @@ def main(input, output, policy_ip, policy_port,
                     # get teleop command
                     sm_state = sm.get_motion_state_transformed()
                     # print(sm_state)
-                    dpos = sm_state[:3] * (0.5 / frequency)
-                    drot_xyz = sm_state[3:] * (1.5 / frequency)
+                    dpos = sm_state[:3] * (0.5 / frequency) * cartesian_speed
+                    drot_xyz = sm_state[3:] * (1.5 / frequency) * orientation_speed
 
                     drot = st.Rotation.from_euler('xyz', drot_xyz)
                     for robot_idx in control_robot_idx_list:
@@ -357,6 +359,7 @@ def main(input, output, policy_ip, policy_port,
                         dpos = gripper_speed / frequency
                     for robot_idx in control_robot_idx_list:
                         gripper_target_pos[robot_idx] = np.clip(gripper_target_pos[robot_idx] + dpos, 0, max_gripper_width)
+
 
                     # solve collision with table
                     for robot_idx in control_robot_idx_list:

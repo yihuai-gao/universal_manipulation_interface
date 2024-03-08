@@ -177,6 +177,8 @@ class Arx5Controller(mp.Process):
     # ========= main loop in process ============
     def run(self):
         self.robot_client = Arx5Client(self.robot_ip, self.robot_port)
+        self.robot_client.reset_to_home()
+        time.sleep(1)
 
         try:
             if self.verbose:
@@ -194,7 +196,7 @@ class Arx5Controller(mp.Process):
             )
             gripper_pos_interp = PoseTrajectoryInterpolator(
                 times=np.array([curr_t]),
-                poses=np.array([curr_gripper_pos])
+                poses=np.array([[curr_gripper_pos,0,0,0,0,0]])
             )
 
 
@@ -205,8 +207,9 @@ class Arx5Controller(mp.Process):
                 t_now = time.monotonic()
                 pose_cmd = pose_interp(t_now)
                 gripper_cmd = float(gripper_pos_interp(t_now)[0])
-                # self.robot_client.set_ee_pose(pose_cmd, gripper_cmd)
-                self.robot_client.get_state()
+                self.robot_client.set_ee_pose(pose_cmd, gripper_cmd)
+                # print(f'arx5 controller sending pose: {pose_cmd} gripper: {gripper_cmd}')
+                # self.robot_client.get_state()
 
                 state = dict()
                 for key, func_name in self.receive_keys:
@@ -244,6 +247,11 @@ class Arx5Controller(mp.Process):
                             time=t_insert,
                             curr_time=curr_time,
                         )
+                        gripper_pos_interp = gripper_pos_interp.drive_to_waypoint(
+                            pose=[command['gripper_pos'], 0, 0, 0, 0, 0],
+                            time=t_insert,
+                            curr_time=curr_time,
+                        )
                         last_waypoint_time = t_insert
                         if self.verbose:
                             print(f"[Arx5Controller] New pose target: {target_pose} duration {duration:.3f}s")
@@ -253,6 +261,12 @@ class Arx5Controller(mp.Process):
                         target_time = time.monotonic() - time.time() + target_time
                         pose_interp = pose_interp.schedule_waypoint(
                             pose=target_pose,
+                            time=target_time,
+                            curr_time=t_now,
+                            last_waypoint_time=last_waypoint_time
+                        )
+                        gripper_pos_interp = gripper_pos_interp.schedule_waypoint(
+                            pose=[command['gripper_pos'], 0, 0, 0, 0, 0],
                             time=target_time,
                             curr_time=t_now,
                             last_waypoint_time=last_waypoint_time
@@ -277,6 +291,7 @@ class Arx5Controller(mp.Process):
     
 
         finally:
+            print("[Arx5Controller] Setting robot to damping")
             self.robot_client.set_to_damping()
             del self.robot_client
             self.ready_event.set()

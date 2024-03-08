@@ -395,6 +395,7 @@ class Arx5JetsonEnv:
                         f'robot{robot_idx}_eef_pose': last_robot_data['ActualTCPPose'],
                         f'robot{robot_idx}_joint_pos': last_robot_data['ActualQ'],
                         f'robot{robot_idx}_joint_vel': last_robot_data['ActualQd'],
+                        f'robot{robot_idx}_gripper_width': last_robot_data['gripper_position']
                     },
                     timestamps=last_robot_data['robot_timestamp']
                 )

@@ -105,7 +105,7 @@ def solve_sphere_collision(ee_poses, robots_config):
 @click.option('--input', '-i', required=True, help='Path to checkpoint')
 @click.option('--output', '-o', required=True, help='Directory to save recording')
 @click.option('--policy_ip', default='localhost')
-@click.option('--policy_port', default=8765)
+@click.option('--policy_port', default=8766)
 @click.option('--match_dataset', '-m', default=None, help='Dataset used to overlay and adjust initial condition')
 @click.option('--match_episode', '-me', default=None, type=int, help='Match specific episode from the match dataset')
 @click.option('--match_camera', '-mc', default=0, type=int)
@@ -224,11 +224,25 @@ def main(input, output, policy_ip, policy_port,
             print("Waiting for camera")
             time.sleep(1.0)
 
-
-            print("Warming up policy inference")
+            print("Waiting for env ready.")
             while not env.is_ready:
                 time.sleep(0.1)
             print("Env is ready")
+
+            print(f"Warming up video recording")
+            video_dir = env.video_dir.joinpath("test")
+            video_dir.mkdir(exist_ok=True, parents=True)
+            n_cameras = env.camera.n_cameras
+            video_paths = []
+            for i in range(n_cameras):
+                video_path = str(video_dir.joinpath(f"{i}.mp4").absolute())
+                video_paths.append(video_path)
+            env.camera.start_recording(
+                video_path=video_paths,
+                start_time=time.time())
+            
+
+            print(f"Warming up policy inference")
             obs = env.get_obs()
             episode_start_pose = list()
             for robot_id in range(len(robots_config)):
@@ -245,13 +259,16 @@ def main(input, output, policy_ip, policy_port,
                 episode_start_pose=episode_start_pose)
         
             socket.send_pyobj(obs_dict_np)
+            print(f"    obs_dict_np sent to PolicyInferenceNode at tcp://{policy_ip}:{policy_port}. Waiting for response.")
             start_time = time.monotonic()
-            print(f"obs_dict_np sent to PolicyInferenceNode at tcp://{policy_ip}:{policy_port}. Waiting for response.")
             action = socket.recv_pyobj()
             if type(action) == str:
                 print(f"Inference from PolicyInferenceNode failed: {action}. Please check the model.")
                 exit(1)
             print(f"Got response from PolicyInferenceNode. Inference time: {time.monotonic() - start_time:.3f} s")
+
+            env.camera.stop_recording()
+            print(f"Warming up video recording finished. Video stored to {env.video_dir.joinpath(str(0))}")
             
             assert action.shape[-1] == 10 * len(robots_config)
             action = get_real_umi_action(action, obs, action_pose_repr)
@@ -348,6 +365,7 @@ def main(input, output, policy_ip, policy_port,
                     # print(sm_state)
                     dpos = sm_state[:3] * (0.5 / frequency)
                     drot_xyz = sm_state[3:] * (1.5 / frequency)
+                    # print(sm_state)
 
                     drot = st.Rotation.from_euler('xyz', drot_xyz)
                     for robot_idx in control_robot_idx_list:
@@ -384,11 +402,14 @@ def main(input, output, policy_ip, policy_port,
                         action[7 * robot_idx + 0: 7 * robot_idx + 6] = target_pose[robot_idx]
                         action[7 * robot_idx + 6] = gripper_target_pos[robot_idx]
 
-
+                    if t_command_target < time.monotonic():
+                        teleop_timestamp = time.monotonic() + 0.1
+                    else:
+                        teleop_timestamp = t_command_target
                     # execute teleop command
                     env.exec_actions(
                         actions=[action], 
-                        timestamps=[t_command_target-time.monotonic()+time.time()],
+                        timestamps=[teleop_timestamp-time.monotonic()+time.time()],
                         compensate_latency=False)
                     precise_wait(t_cycle_end)
                     iter_idx += 1
