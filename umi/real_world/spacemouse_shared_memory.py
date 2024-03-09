@@ -3,7 +3,7 @@ import numpy as np
 import time
 from spnav import spnav_open, spnav_poll_event, spnav_close, SpnavMotionEvent, SpnavButtonEvent
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
-
+import os
 class Spacemouse(mp.Process):
     def __init__(self, 
             shm_manager, 
@@ -126,6 +126,8 @@ class Spacemouse(mp.Process):
 
     # ========= main loop ==========
     def run(self):
+        pid = os.getpid()
+        os.sched_setaffinity(pid, [2])
         spnav_open()
         try:
             motion_event = np.zeros((7,), dtype=np.int64)

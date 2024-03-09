@@ -142,6 +142,8 @@ class WSGController(mp.Process):
     
     # ========= main loop in process ============
     def run(self):
+        pid = os.getpid()
+        os.sched_setaffinity(pid, [4])
         # start connection
         try:
             with WSGBinaryDriver(

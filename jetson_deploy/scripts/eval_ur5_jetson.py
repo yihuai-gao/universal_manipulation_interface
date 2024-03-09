@@ -23,6 +23,7 @@ Press "S" to stop evaluation and gain control back.
 import sys
 import os
 
+# ROOT_DIR = "/home/yihuai/repositories/universal_manipulation_interface"
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(ROOT_DIR)
 os.chdir(ROOT_DIR)
@@ -52,7 +53,6 @@ from umi.real_world.real_inference_util import (get_real_obs_dict,
 from umi.real_world.spacemouse_shared_memory import Spacemouse
 from umi.common.pose_util import pose_to_mat, mat_to_pose
 from jetson_deploy.modules.ur5_jetson_env import UR5JetsonEnv
-
 import zmq
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
@@ -127,6 +127,8 @@ def main(input, output, policy_ip, policy_port,
     steps_per_inference, max_duration,
     frequency, command_latency, 
     no_mirror, sim_fov, camera_intrinsics, mirror_swap):
+    pid = os.getpid()
+    os.sched_setaffinity(pid, [0, 1])
     max_gripper_width = 0.09
     gripper_speed = 0.2
 
@@ -445,20 +447,24 @@ def main(input, output, policy_ip, policy_port,
                         print(f'Obs latency {time.time() - obs_timestamps[-1]}')
 
                         # run inference
-                        s = time.time()
+                        s = time.monotonic()
                         obs_dict_np = get_real_umi_obs_dict(
                             env_obs=obs, shape_meta=cfg.task.shape_meta, 
                             obs_pose_repr=obs_pose_rep,
                             tx_robot1_robot0=tx_robot1_robot0,
                             episode_start_pose=episode_start_pose)
+                        inf_t1 = time.monotonic()
                         socket.send_pyobj(obs_dict_np)
+                        inf_t15 = time.monotonic()
                         raw_action = socket.recv_pyobj()
+                        inf_t2 = time.monotonic()
                         if type(raw_action) == str:
                             print(f"Inference from PolicyInferenceNode failed: {raw_action}. Please check the model.")
                             env.end_episode()
                             break
                         action = get_real_umi_action(raw_action, obs, action_pose_repr)
-                        print('Inference latency:', time.time() - s)
+                        # print('Inference latency:', time.monotonic() - s)
+                        print(f"get_real_umi_action: {time.monotonic() - inf_t2:.3f}, send: {inf_t2-inf_t15:.3f}, recv: {inf_t15-inf_t1:.3f}, get_obs_dict: {inf_t1 - s:.3f} s")
                         
                         # convert policy action to env actions
                         this_target_poses = action
@@ -513,6 +519,7 @@ def main(input, output, policy_ip, policy_port,
                         text = 'Episode: {}, Time: {:.1f}'.format(
                             episode_id, time.monotonic() - t_start
                         )
+                        img_start_t = time.time()
                         cv2.putText(
                             vis_img,
                             text,
@@ -523,6 +530,7 @@ def main(input, output, policy_ip, policy_port,
                             color=(255,255,255)
                         )
                         cv2.imshow('default', vis_img[...,::-1])
+                        print(f"Visualize latency: {time.time() - img_start_t:.3f} s")
 
                         _ = cv2.pollKey()
                         press_events = key_counter.get_press_events()

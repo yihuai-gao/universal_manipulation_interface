@@ -12,7 +12,7 @@ from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.shared_memory.shared_memory_queue import SharedMemoryQueue, Full, Empty
 from umi.real_world.video_recorder import VideoRecorder
 from umi.common.usb_util import reset_usb_device
-
+import os
 class Command(enum.Enum):
     RESTART_PUT = 0
     START_RECORDING = 1
@@ -212,6 +212,9 @@ class UvcCamera(mp.Process):
 
     # ========= interval API ===========
     def run(self):
+
+        pid = os.getpid()
+        os.sched_setaffinity(pid, [5])
         # limit threads
         threadpool_limits(self.num_threads)
         cv2.setNumThreads(self.num_threads)

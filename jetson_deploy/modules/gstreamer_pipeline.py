@@ -6,6 +6,7 @@ from gi.repository import Gst, GLib # type: ignore
 import numpy.typing as npt
 import cv2
 import sys
+import os
 def bus_call(bus, message, loop):
     t = message.type
     if t == Gst.MessageType.EOS:

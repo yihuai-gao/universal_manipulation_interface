@@ -8,6 +8,7 @@ from multiprocessing.managers import SharedMemoryManager
 from diffusion_policy.shared_memory.shared_memory_queue import SharedMemoryQueue, Full, Empty
 from umi.common.timestamp_accumulator import get_accumulate_timestamp_idxs
 from jetson_deploy.modules.gstreamer_pipeline import GstreamerPipeline
+import os
 class VideoRecorderJetson(mp.Process):
     MAX_PATH_LENGTH = 4096 # linux path has a limit of 4096 bytes
     class Command(enum.Enum):
@@ -192,6 +193,8 @@ class VideoRecorderJetson(mp.Process):
 
 
     def run(self):
+        pid = os.getpid()
+        os.sched_setaffinity(pid, [6])
         # I'm sorry it has to be this complicated...
         self.ready_event.set()
         while not self.stop_event.is_set():

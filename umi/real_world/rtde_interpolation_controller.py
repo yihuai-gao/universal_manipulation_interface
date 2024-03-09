@@ -219,6 +219,8 @@ class RTDEInterpolationController(mp.Process):
     
     # ========= main loop in process ============
     def run(self):
+        pid = os.getpid()
+        os.sched_setaffinity(pid, [3])
         # enable soft real-time
         if self.soft_real_time:
             os.sched_setscheduler(
