@@ -3,7 +3,7 @@ import multiprocessing as mp
 import numpy as np
 import cv2
 from threadpoolctl import threadpool_limits
-
+import os
 class MultiCameraVisualizer(mp.Process):
     def __init__(self,
         camera,
@@ -46,6 +46,8 @@ class MultiCameraVisualizer(mp.Process):
         self.join()        
     
     def run(self):
+        pid = os.getpid()
+        os.sched_setaffinity(pid, [1])
         cv2.setNumThreads(1)
         threadpool_limits(1)
         channel_slice = slice(None)

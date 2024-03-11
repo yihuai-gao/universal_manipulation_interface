@@ -9,11 +9,8 @@ def main(output):
     context = zmq.Context()
     socket = context.socket(zmq.REQ)
     socket.connect(f"tcp://iris-robot-ws-2:8766")
-    obs_dict_np = np.load(f'{output}/obs/obs_dict_{0}.npy', allow_pickle=True).item()
-    for key, item in obs_dict_np.items():
-        print(key, item.shape)
     while True:
-        obs_dict_np = np.load(f'{output}/obs/obs_dict_{iter_idx}.npy', allow_pickle=True).item()
+        obs_dict_np = np.load(f'{output}/obs/obs_dict_np_{iter_idx}.npy', allow_pickle=True).item()
         send_start_time = time.monotonic()
         socket.send_pyobj(obs_dict_np)
         recv_start_time = time.monotonic()

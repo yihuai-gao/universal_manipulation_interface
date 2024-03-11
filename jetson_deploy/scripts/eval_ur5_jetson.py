@@ -128,7 +128,7 @@ def main(input, output, policy_ip, policy_port,
     frequency, command_latency, 
     no_mirror, sim_fov, camera_intrinsics, mirror_swap):
     pid = os.getpid()
-    os.sched_setaffinity(pid, [0, 1])
+    os.sched_setaffinity(pid, [7])
     max_gripper_width = 0.09
     gripper_speed = 0.2
 
@@ -195,6 +195,9 @@ def main(input, output, policy_ip, policy_port,
     socket = context.socket(zmq.REQ)
     socket.connect(f"tcp://{policy_ip}:{policy_port}")
 
+    os.makedirs(output, exist_ok=True)
+    # os.makedirs(f"{output}/obs", exist_ok=True)
+
     print("steps_per_inference:", steps_per_inference)
     with SharedMemoryManager() as shm_manager:
         with Spacemouse(shm_manager=shm_manager) as sm, \
@@ -208,7 +211,7 @@ def main(input, output, policy_ip, policy_port,
                 obs_float32=True,
                 camera_reorder=[int(x) for x in camera_reorder],
                 init_joints=init_joints,
-                enable_multi_cam_vis=True,
+                enable_multi_cam_vis=False,
                 # latency
                 camera_obs_latency=0.17,
                 # obs
@@ -453,6 +456,7 @@ def main(input, output, policy_ip, policy_port,
                             obs_pose_repr=obs_pose_rep,
                             tx_robot1_robot0=tx_robot1_robot0,
                             episode_start_pose=episode_start_pose)
+                        # np.save(f"{output}/obs/obs_dict_np_{iter_idx}.npy", obs_dict_np, allow_pickle=True)
                         inf_t1 = time.monotonic()
                         socket.send_pyobj(obs_dict_np)
                         inf_t15 = time.monotonic()
