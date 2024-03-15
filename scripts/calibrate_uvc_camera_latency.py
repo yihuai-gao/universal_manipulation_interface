@@ -29,6 +29,7 @@ def main(camera_idx, qr_size, fps, n_frames):
     # Find and reset all Elgato capture cards.
     # Required to workaround a firmware bug.
     reset_all_elgato_devices()
+    time.sleep(0.1)
     v4l_paths = get_sorted_v4l_paths()
     v4l_path = v4l_paths[camera_idx]
     get_max_k = n_frames
@@ -76,7 +77,7 @@ def main(camera_idx, qr_size, fps, n_frames):
                 cv2.imshow('Timestamp QRCode', img)
                 t_show = time.time()
                 qr_latency_deque.append(t_show - t_sample)
-                cv2.imshow('Camera', cam_img)
+                # cv2.imshow('Camera', cam_img)
                 keycode = cv2.pollKey()
                 t_end = time.time()
                 avg_latency = np.nanmean(qr_det_queue) - np.mean(qr_latency_deque)

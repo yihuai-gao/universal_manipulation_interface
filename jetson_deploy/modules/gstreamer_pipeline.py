@@ -137,7 +137,8 @@ class GstreamerPipeline:
 
 if __name__ == "__main__":
     with GstreamerPipeline(bitrate=6000000) as pipeline:
-        device_path = "/dev/v4l/by-id/usb-Elgato_Elgato_HD60_X_A00XB320216MTR-video-index0"
+        # device_path = "/dev/v4l/by-id/usb-Elgato_Elgato_HD60_X_A00XB320216MTR-video-index0"
+        device_path = "video0"
         cap = cv2.VideoCapture(device_path)
         print(f"Capturing from device {device_path}")
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)

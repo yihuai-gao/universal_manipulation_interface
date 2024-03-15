@@ -26,7 +26,7 @@ def echo_exception():
 
     return "".join(tb_lines)
 class PolicyInferenceNode:
-    def __init__(self, ckpt_path: str, ip: str, port: int):
+    def __init__(self, ckpt_path: str, ip: str, port: int, device: str):
         self.ckpt_path = ckpt_path
         if not self.ckpt_path.endswith('.ckpt'):
             self.ckpt_path = os.path.join(self.ckpt_path, 'checkpoints', 'latest.ckpt')
@@ -57,7 +57,7 @@ class PolicyInferenceNode:
         print('obs_pose_rep', obs_pose_rep)
         print('action_pose_repr', action_pose_repr)
         
-        self.device = torch.device('cuda')
+        self.device = torch.device(device)
         self.policy.eval().to(self.device)
         self.policy.reset()
         self.ip = ip
@@ -96,8 +96,9 @@ class PolicyInferenceNode:
 @click.option('--input', '-i', required=True, help='Path to checkpoint')
 @click.option('--ip', default="localhost")
 @click.option('--port', default=8766, help="Port to listen on")
-def main(input, ip, port):
-    node = PolicyInferenceNode(input, ip, port)
+@click.option('--device', default="cuda", help="Device to run on")
+def main(input, ip, port, device):
+    node = PolicyInferenceNode(input, ip, port, device)
     node.run_node()
                 
 

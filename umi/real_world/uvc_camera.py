@@ -71,7 +71,10 @@ class UvcCamera(mp.Process):
         # vis_examples = examples.copy()
         # vis_shape = vis_transform(tf_example)["color"].shape
         # print(f"{vis_shape=}")
-        vis_shape = (720, 960, 3)        
+        if vis_transform is not None:
+            vis_shape = (720, 960, 3)        
+        else:
+            vis_shape = shape+(3,)
         vis_examples['color'] = np.empty(shape=vis_shape, dtype=np.uint8)
         # print(f"{vis_examples['color'].shape=}, {examples['color'].shape=}")
         # print(f"{vis_examples['color'].flags=}, {examples['color'].flags=}")
