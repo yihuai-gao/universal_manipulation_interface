@@ -21,7 +21,6 @@ from umi.common.usb_util import reset_all_elgato_devices, get_sorted_v4l_paths
 from umi.common.pose_util import pose_to_pos_rot
 from umi.common.interpolation_util import get_interp1d, PoseInterpolator
 
-
 class Arx5JetsonEnv:
     def __init__(self, 
             # required params
@@ -208,6 +207,7 @@ class Arx5JetsonEnv:
                 robot_ip=rc['robot_ip'],
                 robot_port = rc['robot_port'],
                 frequency=200,
+                verbose=True
             )
             robots.append(this_robot)
 

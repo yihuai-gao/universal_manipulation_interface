@@ -8,7 +8,7 @@ def main(output):
     iter_idx = 0
     context = zmq.Context()
     socket = context.socket(zmq.REQ)
-    socket.connect(f"tcp://iris-robot-ws-2:8766")
+    socket.connect(f"tcp://robodog-adapter1:8766")
     while True:
         obs_dict_np = np.load(f'{output}/obs/obs_dict_np_{iter_idx}.npy', allow_pickle=True).item()
         send_start_time = time.monotonic()

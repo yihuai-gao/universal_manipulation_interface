@@ -14,10 +14,14 @@ import time
 import zmq
 from jetson_deploy.modules.arx5_zmq_client import Arx5Client
 import numpy.typing as npt
+
+from multiprocessing import Value
+import ctypes
 class Command(enum.Enum):
     STOP = 0
     SERVOL = 1
     SCHEDULE_WAYPOINT = 2
+    RESET_TO_HOME = 3
 
 
 class Arx5Controller(mp.Process):
@@ -28,7 +32,7 @@ class Arx5Controller(mp.Process):
         shm_manager: SharedMemoryManager,
         robot_ip: str,
         robot_port: int,
-        launch_timeout: float = 3,
+        launch_timeout: float = 10,
         frequency: float = 200,
         get_max_k: Optional[int] = None,
         verbose: bool = False,
@@ -56,7 +60,7 @@ class Arx5Controller(mp.Process):
 
         # build ring buffer
         receive_keys = [
-            ('ActualTCPPose', 'ee_pose'),
+            ('ActualTCPPose', 'tcp_pose'),
             ('ActualQ', 'joint_pos'),
             ('ActualQd','joint_vel'),
             ('gripper_position', 'gripper_pos'),
@@ -64,9 +68,9 @@ class Arx5Controller(mp.Process):
         example = dict()
         for key, func_name in receive_keys:
             if 'joint' in func_name:
-                example[key] = np.zeros(6)
-            elif 'ee_pose' in func_name:
-                example[key] = np.zeros(6)
+                example[key] = np.zeros(6, dtype=np.float64)
+            elif 'tcp_pose' in func_name:
+                example[key] = np.zeros(6, dtype=np.float64)
         example['gripper_position'] = 0.0
 
         example['robot_receive_timestamp'] = time.time()
@@ -91,6 +95,7 @@ class Arx5Controller(mp.Process):
 
         # Will be initialized in the subprocess
         self.robot_client: Arx5Client
+        self.reset_success = Value(ctypes.c_bool, False)
 
 
     
@@ -111,8 +116,12 @@ class Arx5Controller(mp.Process):
         self.input_queue.put(message)
         if wait:
             self.stop_wait()
+        if self.verbose:
+            print(f"[Arx5Controller] Controller process terminated at {self.pid}")
 
     def start_wait(self):
+        print(f"[Arx5Controller] Waiting for controller process to be ready")
+        print(f"{self.launch_timeout=}")
         self.ready_event.wait(self.launch_timeout)
         assert self.is_alive()
     
@@ -172,21 +181,35 @@ class Arx5Controller(mp.Process):
         }
         self.input_queue.put(message)
 
+    def reset_to_home(self):
+        self.reset_success.value = False
+        message = {
+            'cmd': Command.RESET_TO_HOME.value
+        }
+        self.input_queue.put(message)
+        while not self.reset_success.value:
+            print('waiting for reset')
+            time.sleep(0.1)
+
     
 
-    # ========= main loop in process ============
+    # ========= main loop in process ============ 
     def run(self):
         self.robot_client = Arx5Client(self.robot_ip, self.robot_port)
         self.robot_client.reset_to_home()
         time.sleep(1)
+        # self.robot_client.set_to_damping()
+        # gain = self.robot_client.get_gain()
+        # gain['kd'] = gain['kd'] * 0.2
+        # self.robot_client.set_gain(gain)
+        np.set_printoptions(precision=3, suppress=True)
 
         try:
-            if self.verbose:
-                print("[Arx5Controller] Controller process is ready")
+
             
             dt = 1/self.frequency
             self.robot_client.get_state()
-            curr_pose = self.robot_client.ee_pose
+            curr_pose = self.robot_client.tcp_pose
             curr_gripper_pos = self.robot_client.gripper_pos
             curr_t = time.monotonic()
             last_waypoint_time = curr_t
@@ -207,17 +230,20 @@ class Arx5Controller(mp.Process):
                 t_now = time.monotonic()
                 pose_cmd = pose_interp(t_now)
                 gripper_cmd = float(gripper_pos_interp(t_now)[0])
-                self.robot_client.set_ee_pose(pose_cmd, gripper_cmd)
-                # print(f'arx5 controller sending pose: {pose_cmd} gripper: {gripper_cmd}')
                 # self.robot_client.get_state()
 
+                self.robot_client.set_tcp_pose(pose_cmd, gripper_cmd)
                 state = dict()
                 for key, func_name in self.receive_keys:
                     state[key] = getattr(self.robot_client, func_name)
+                print("finish getting attrs")
                 t_recv = time.time()
                 state['robot_receive_timestamp'] = t_recv
                 state['robot_timestamp'] = t_recv - self.receive_latency
                 self.ring_buffer.put(state)
+                print("finish putting state")
+                # if self.verbose:
+                #     print(f"Current: {state['ActualTCPPose']} target: {pose_cmd}, gripper: {state['gripper_position']:.3f}/{gripper_cmd:.3f}")
 
                 try:
                     # process at most 1 command per cycle to maintain frequency
@@ -226,6 +252,7 @@ class Arx5Controller(mp.Process):
                 except Empty:
                     commands = {}
                     n_cmd = 0
+                print(f"{n_cmd=}")
 
                 # execute commands
                 for i in range(n_cmd):
@@ -272,22 +299,52 @@ class Arx5Controller(mp.Process):
                             last_waypoint_time=last_waypoint_time
                         )
                         last_waypoint_time = target_time
+
+                    elif cmd == Command.RESET_TO_HOME.value:
+                        self.robot_client.reset_to_home()
+                        self.robot_client.get_state()
+
+                        self.ring_buffer.clear()
+                        state = dict()
+                        for key, func_name in self.receive_keys:
+                            state[key] = getattr(self.robot_client, func_name)
+                        t_recv = time.time()
+                        state['robot_receive_timestamp'] = t_recv
+                        state['robot_timestamp'] = t_recv - self.receive_latency
+                        self.ring_buffer.put(state)
                         if self.verbose:
-                            print(f"[Arx5Controller] New pose target: {target_pose} scheduled at {target_time:.3f}s")
+                            print(f"[Arx5Controller] Reset to home")
+
+                        curr_pose = self.robot_client.tcp_pose
+                        curr_gripper_pos = self.robot_client.gripper_pos
+                        curr_t = time.monotonic()
+                        last_waypoint_time = curr_t
+                        pose_interp = PoseTrajectoryInterpolator(
+                            times=np.array([curr_t]),
+                            poses=np.array([curr_pose])
+                        )
+                        gripper_pos_interp = PoseTrajectoryInterpolator(
+                            times=np.array([curr_t]),
+                            poses=np.array([[curr_gripper_pos,0,0,0,0,0]])
+                        )
+                        self.reset_success.value = True
+
                     else:
                         keep_running = False
                         print(f"[Arx5Controller] Unknown command {cmd}")
                         break
                 # regulate frequency
                 t_wait_util = t_start + (iter_idx + 1) * dt
+                print("start precise wait")
                 precise_wait(t_wait_util, time_func=time.monotonic)
-
                 # first loop successful, ready to receive command
                 if iter_idx == 0:
                     self.ready_event.set()
+                    if self.verbose:
+                        print("[Arx5Controller] Controller process is ready")
                 iter_idx += 1
-                if self.verbose:
-                    print(f"[Arx5Controller] Actual frequency {1/(time.monotonic() - t_now)} Hz")
+                # if self.verbose:
+                #     print(f"[Arx5Controller] Actual frequency {1/(time.monotonic() - t_now)} Hz")
     
 
         finally:

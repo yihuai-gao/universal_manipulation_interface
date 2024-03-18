@@ -94,7 +94,7 @@ class PolicyInferenceNode:
     
 @click.command()
 @click.option('--input', '-i', required=True, help='Path to checkpoint')
-@click.option('--ip', default="localhost")
+@click.option('--ip', default="0.0.0.0")
 @click.option('--port', default=8766, help="Port to listen on")
 @click.option('--device', default="cuda", help="Device to run on")
 def main(input, ip, port, device):

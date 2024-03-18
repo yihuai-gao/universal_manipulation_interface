@@ -126,10 +126,17 @@ def main(input, output, policy_ip, policy_port,
     steps_per_inference, max_duration,
     frequency, command_latency, 
     no_mirror, sim_fov, camera_intrinsics, mirror_swap):
-    max_gripper_width = 1.0
-    gripper_speed = 0.2
+    pid = os.getpid()
+    os.sched_setaffinity(pid, [7])
+    max_gripper_width = 0.085
+    gripper_speed = 0.01
     cartesian_speed = 0.2
     orientation_speed = 0.4
+
+    os.makedirs(output, exist_ok=True)
+    os.makedirs(os.path.join(output, 'obs'), exist_ok=True)
+    os.makedirs(os.path.join(output, 'action'), exist_ok=True)
+
 
     tx_left_right = np.array([
         [ 0.99996206,  0.00661996,  0.00566226, -0.01676012],
@@ -187,7 +194,7 @@ def main(input, output, policy_ip, policy_port,
                 obs_float32=True,
                 camera_reorder=[int(x) for x in camera_reorder],
                 init_joints=init_joints,
-                enable_multi_cam_vis=True,
+                enable_multi_cam_vis=False,
                 # latency
                 camera_obs_latency=0.17,
                 # obs
@@ -277,6 +284,8 @@ def main(input, output, policy_ip, policy_port,
 
                     # visualize
                     episode_id = env.replay_buffer.n_episodes
+                    os.makedirs(os.path.join(output, 'obs', f'{episode_id}'), exist_ok=True)
+                    os.makedirs(os.path.join(output, 'action', f'{episode_id}'), exist_ok=True)
                     vis_img = obs[f'camera{match_camera}_rgb'][-1]
                     obs_left_img = obs['camera0_rgb'][-1]
                     obs_right_img = obs['camera0_rgb'][-1]
@@ -352,27 +361,36 @@ def main(input, output, policy_ip, policy_port,
                         # target_pose[robot_idx, 2] = np.maximum(target_pose[robot_idx, 2], 0.055)
 
                     dpos = 0
-                    if sm.is_button_pressed(0):
+                    if sm.is_button_pressed(0) and sm.is_button_pressed(1):
+                        print("Reset robot arm to home. Please wait...")
+                        for robot_idx in control_robot_idx_list:
+                            env.robots[robot_idx].reset_to_home()
+                            robot_states = env.get_robot_state()
+                            target_pose[robot_idx] = np.stack([rs['ActualTCPPose'] for rs in robot_states])
+                            gripper_target_pos[robot_idx] = np.asarray([rs['gripper_position'] for rs in robot_states])
+                                
+
+                    elif sm.is_button_pressed(0):
                         # close gripper
                         dpos = -gripper_speed / frequency
-                    if sm.is_button_pressed(1):
+                    elif sm.is_button_pressed(1):
                         dpos = gripper_speed / frequency
                     for robot_idx in control_robot_idx_list:
                         gripper_target_pos[robot_idx] = np.clip(gripper_target_pos[robot_idx] + dpos, 0, max_gripper_width)
 
 
-                    # solve collision with table
-                    for robot_idx in control_robot_idx_list:
-                        solve_table_collision(
-                            ee_pose=target_pose[robot_idx],
-                            gripper_width=gripper_target_pos[robot_idx],
-                            height_threshold=robots_config[robot_idx]['height_threshold'])
+                    # # solve collision with table
+                    # for robot_idx in control_robot_idx_list:
+                    #     solve_table_collision(
+                    #         ee_pose=target_pose[robot_idx],
+                    #         gripper_width=gripper_target_pos[robot_idx],
+                    #         height_threshold=robots_config[robot_idx]['height_threshold'])
                     
-                    # solve collison between two robots
-                    solve_sphere_collision(
-                        ee_poses=target_pose,
-                        robots_config=robots_config
-                    )
+                    # # solve collison between two robots
+                    # solve_sphere_collision(
+                    #     ee_poses=target_pose,
+                    #     robots_config=robots_config
+                    # )
 
                     action = np.zeros((7 * target_pose.shape[0],))
 
@@ -423,6 +441,7 @@ def main(input, output, policy_ip, policy_port,
                         obs_timestamps = obs['timestamp']
                         print(f'Obs latency {time.time() - obs_timestamps[-1]}')
 
+
                         # run inference
                         s = time.time()
                         obs_dict_np = get_real_umi_obs_dict(
@@ -430,6 +449,15 @@ def main(input, output, policy_ip, policy_port,
                             obs_pose_repr=obs_pose_rep,
                             tx_robot1_robot0=tx_robot1_robot0,
                             episode_start_pose=episode_start_pose)
+                        obs_data = {
+                            "obs_dict_np": obs_dict_np, 
+                            "obs_pose_rep": obs_pose_rep, 
+                            "obs": obs, 
+                            "episode_start_pose": episode_start_pose,
+                            "tx_robot1_robot0": tx_robot1_robot0
+                        }
+                        np.save(os.path.join(output, 'obs', f'{episode_id}', f'{iter_idx}.npy'), obs_data, allow_pickle=True)
+
                         socket.send_pyobj(obs_dict_np)
                         raw_action = socket.recv_pyobj()
                         if type(raw_action) == str:
@@ -437,24 +465,30 @@ def main(input, output, policy_ip, policy_port,
                             env.end_episode()
                             break
                         action = get_real_umi_action(raw_action, obs, action_pose_repr)
+                        action_data = {
+                            "action": action,
+                            "raw_action": raw_action,
+                            "action_pose_repr": action_pose_repr
+                        }
+                        np.save(os.path.join(output, 'action', f'{episode_id}', f'{iter_idx}.npy'), action_data, allow_pickle=True)
                         print('Inference latency:', time.time() - s)
                         
                         # convert policy action to env actions
                         this_target_poses = action
                         assert this_target_poses.shape[1] == len(robots_config) * 7
-                        for target_pose in this_target_poses:
-                            for robot_idx in range(len(robots_config)):
-                                solve_table_collision(
-                                    ee_pose=target_pose[robot_idx * 7: robot_idx * 7 + 6],
-                                    gripper_width=target_pose[robot_idx * 7 + 6],
-                                    height_threshold=robots_config[robot_idx]['height_threshold']
-                                )
+                        # for target_pose in this_target_poses:
+                        #     for robot_idx in range(len(robots_config)):
+                        #         solve_table_collision(
+                        #             ee_pose=target_pose[robot_idx * 7: robot_idx * 7 + 6],
+                        #             gripper_width=target_pose[robot_idx * 7 + 6],
+                        #             height_threshold=robots_config[robot_idx]['height_threshold']
+                        #         )
                             
-                            # solve collison between two robots
-                            solve_sphere_collision(
-                                ee_poses=target_pose.reshape([len(robots_config), -1]),
-                                robots_config=robots_config
-                            )
+                        #     # solve collison between two robots
+                        #     solve_sphere_collision(
+                        #         ee_poses=target_pose.reshape([len(robots_config), -1]),
+                        #         robots_config=robots_config
+                        #     )
 
                         # deal with timing
                         # the same step actions are always the target for
