@@ -106,12 +106,18 @@ def ee2tcp(ee_pose: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     ee2tcp_rot_mat = np.array(
         [
             [0, 0, 1],
-            [1, 0, 0],
-            [0, 1, 0],
+            [-1, 0, 0],
+            [0, -1, 0],
         ]
     )
     tcp_rot_mat = ee_rot_mat @ ee2tcp_rot_mat
     tcp_rotvec = rotm2rotvec(tcp_rot_mat)
+    # opposite the rotation vector but keep the same pose
+    angle_rad = np.linalg.norm(tcp_rotvec)
+    vec = tcp_rotvec / angle_rad
+    alternate_angle_rad = 2 * np.pi - angle_rad
+    tcp_rotvec = -vec * alternate_angle_rad
+
     return np.concatenate([ee_cartesian, tcp_rotvec])
 
 
@@ -121,8 +127,8 @@ def tcp2ee(tcp_pose: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     tcp_rot_mat = rotvec2rotm(tcp_rotvec)
     tcp2ee_rot_mat = np.array(
         [
-            [0, 1, 0],
-            [0, 0, 1],
+            [0, -1, 0],
+            [0, 0, -1],
             [1, 0, 0],
         ]
     )

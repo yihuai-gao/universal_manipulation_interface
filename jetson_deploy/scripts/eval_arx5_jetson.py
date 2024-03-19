@@ -129,7 +129,7 @@ def main(input, output, policy_ip, policy_port,
     pid = os.getpid()
     os.sched_setaffinity(pid, [7])
     max_gripper_width = 0.085
-    gripper_speed = 0.01
+    gripper_speed = 0.02
     cartesian_speed = 0.2
     orientation_speed = 0.4
 
@@ -171,8 +171,8 @@ def main(input, output, policy_ip, policy_port,
             "robot_ip": "yihuai-adapter1.stanford.edu",
             "robot_port": 8765,
             "robot_obs_latency": 0.005, # TODO: need to measure
-            "robot_action_latency": 0.1, # TODO: need to measure
-            "height_threshold": 0.0, # TODO: need to measure
+            "robot_action_latency": 0.05, # TODO: need to measure
+            "height_threshold": -0.2, # TODO: ncscseed to measure
             "sphere_radius": 0.1, # TODO: need to measure
             "sphere_center": [0, -0.06, -0.185], # TODO: need to measure
         }

@@ -3,8 +3,8 @@ from diffusion_policy.common.pose_repr_util import convert_pose_mat_rep
 from umi.common.pose_util import mat_to_pose, pose10d_to_mat, pose_to_mat
 import zmq
 from umi.real_world.real_inference_util import get_real_umi_action
-output_dir = "data_local/arx_20240314/vit_l_mirror_swap"
-episode_id = 27
+output_dir = "data_local/arx_20240320/vit_l_mirror_swap"
+episode_id = 0
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -46,7 +46,7 @@ while True:
             obs[f'robot{robot_idx}_eef_pos'][-1],
             obs[f'robot{robot_idx}_eef_rot_axis_angle'][-1]
         ], axis=-1))
-        print(f"{obs[f'robot{robot_idx}_eef_pos'][-1]=}", f"{obs[f'robot{robot_idx}_eef_rot_axis_angle'][-1]=}")
+        # print(f"{obs[f'robot{robot_idx}_eef_pos'][-1]=}", f"{obs[f'robot{robot_idx}_eef_rot_axis_angle'][-1]=}")
         rpy = obs[f'robot{robot_idx}_eef_rot_axis_angle'][-1]
 
         start = robot_idx * 10
@@ -71,13 +71,23 @@ while True:
     # print(np.all(action == calc_action))
     print(f"Step {step_num}")
     # print(f"Obs: {obs}")
+    print(f"")
+    # print(f"Episode start pose: {obs_data['episode_start_pose']}")
     print(f"{obs[f'robot{0}_eef_pos']=}")
-    print(f"{obs[f'robot{0}_eef_rot_axis_angle']=}")
-    print(f"{relative_action_pose=}")
+    # print(f"{obs[f'robot{0}_eef_rot_axis_angle']=}")
+    # print(f"{relative_action_pose=}")
     print(f"Action: {action}")
+    monotonic_step_range = 5
+    monotonic_cnt = 0
+    for k in range(6):
+        if np.all(action[1:monotonic_step_range+1, k] >= action[:monotonic_step_range, k] - 0.0001):
+            monotonic_cnt += 1
+        elif np.all(action[1:monotonic_step_range+1, k] <= action[:monotonic_step_range, k] + 0.0001):
+            monotonic_cnt += 1
+    # print(f"{monotonic_cnt=}")
+
 
     step_num += inference_step_num
-    break
 
 # ref_output_dir = "data_local/wild_cup_20240203/vit_l_mirror_swap"
 # ref_obs_dict = np.load(f"{ref_output_dir}/obs/obs_dict_360.npy", allow_pickle=True).item()

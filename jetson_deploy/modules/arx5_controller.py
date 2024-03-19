@@ -68,9 +68,9 @@ class Arx5Controller(mp.Process):
         example = dict()
         for key, func_name in receive_keys:
             if 'joint' in func_name:
-                example[key] = np.zeros(6, dtype=np.float64)
+                example[key] = np.zeros(6)
             elif 'tcp_pose' in func_name:
-                example[key] = np.zeros(6, dtype=np.float64)
+                example[key] = np.zeros(6)
         example['gripper_position'] = 0.0
 
         example['robot_receive_timestamp'] = time.time()
@@ -230,18 +230,16 @@ class Arx5Controller(mp.Process):
                 t_now = time.monotonic()
                 pose_cmd = pose_interp(t_now)
                 gripper_cmd = float(gripper_pos_interp(t_now)[0])
-                # self.robot_client.get_state()
 
                 self.robot_client.set_tcp_pose(pose_cmd, gripper_cmd)
                 state = dict()
                 for key, func_name in self.receive_keys:
                     state[key] = getattr(self.robot_client, func_name)
-                print("finish getting attrs")
                 t_recv = time.time()
                 state['robot_receive_timestamp'] = t_recv
                 state['robot_timestamp'] = t_recv - self.receive_latency
                 self.ring_buffer.put(state)
-                print("finish putting state")
+
                 # if self.verbose:
                 #     print(f"Current: {state['ActualTCPPose']} target: {pose_cmd}, gripper: {state['gripper_position']:.3f}/{gripper_cmd:.3f}")
 
@@ -252,7 +250,6 @@ class Arx5Controller(mp.Process):
                 except Empty:
                     commands = {}
                     n_cmd = 0
-                print(f"{n_cmd=}")
 
                 # execute commands
                 for i in range(n_cmd):
@@ -335,7 +332,6 @@ class Arx5Controller(mp.Process):
                         break
                 # regulate frequency
                 t_wait_util = t_start + (iter_idx + 1) * dt
-                print("start precise wait")
                 precise_wait(t_wait_util, time_func=time.monotonic)
                 # first loop successful, ready to receive command
                 if iter_idx == 0:
