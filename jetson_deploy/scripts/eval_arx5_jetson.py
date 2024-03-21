@@ -171,7 +171,7 @@ def main(input, output, policy_ip, policy_port,
             "robot_ip": "yihuai-adapter1.stanford.edu",
             "robot_port": 8765,
             "robot_obs_latency": 0.005, # TODO: need to measure
-            "robot_action_latency": 0.05, # TODO: need to measure
+            "robot_action_latency": 0.04, # TODO: need to measure
             "height_threshold": -0.2, # TODO: ncscseed to measure
             "sphere_radius": 0.1, # TODO: need to measure
             "sphere_center": [0, -0.06, -0.185], # TODO: need to measure
@@ -494,27 +494,27 @@ def main(input, output, policy_ip, policy_port,
                         # the same step actions are always the target for
                         action_timestamps = (np.arange(len(action), dtype=np.float64)
                             ) * dt + obs_timestamps[-1]
-                        print(dt)
-                        action_exec_latency = 0.01
-                        curr_time = time.time()
-                        is_new = action_timestamps > (curr_time + action_exec_latency)
-                        if np.sum(is_new) == 0:
-                            # exceeded time budget, still do something
-                            this_target_poses = this_target_poses[[-1]]
-                            # schedule on next available step
-                            next_step_idx = int(np.ceil((curr_time - eval_t_start) / dt))
-                            action_timestamp = eval_t_start + (next_step_idx) * dt
-                            print('Over budget', action_timestamp - curr_time)
-                            action_timestamps = np.array([action_timestamp])
-                        else:
-                            this_target_poses = this_target_poses[is_new]
-                            action_timestamps = action_timestamps[is_new]
+                        # action_exec_latency = 0.01
+                        # curr_time = time.time()
+                        # is_new = action_timestamps > (curr_time + action_exec_latency)
+                        # if np.sum(is_new) == 0:
+                        #     # exceeded time budget, still do something
+                        #     this_target_poses = this_target_poses[[-1]]
+                        #     # schedule on next available step
+                        #     next_step_idx = int(np.ceil((curr_time - eval_t_start) / dt))
+                        #     action_timestamp = eval_t_start + (next_step_idx) * dt
+                        #     print('Over budget', action_timestamp - curr_time)
+                        #     action_timestamps = np.array([action_timestamp])
+                        # else:
+                        #     this_target_poses = this_target_poses[is_new]
+                        #     action_timestamps = action_timestamps[is_new]
 
                         # execute actions
                         env.exec_actions(
                             actions=this_target_poses,
                             timestamps=action_timestamps,
-                            compensate_latency=True
+                            # compensate_latency=True
+                            dynamic_latency=True
                         )
                         print(f"Submitted {len(this_target_poses)} steps of actions.")
 

@@ -22,6 +22,8 @@ class Command(enum.Enum):
     SERVOL = 1
     SCHEDULE_WAYPOINT = 2
     RESET_TO_HOME = 3
+    ADD_WAYPOINT = 4
+    UPDATE_TRAJECTORY = 5
 
 
 class Arx5Controller(mp.Process):
@@ -33,7 +35,7 @@ class Arx5Controller(mp.Process):
         robot_ip: str,
         robot_port: int,
         launch_timeout: float = 10,
-        frequency: float = 200,
+        frequency: float = 100,
         get_max_k: Optional[int] = None,
         verbose: bool = False,
         receive_latency: float = 0.0,
@@ -181,6 +183,24 @@ class Arx5Controller(mp.Process):
         }
         self.input_queue.put(message)
 
+    def add_waypoint(self, pose:npt.NDArray[np.float64], gripper_pos: float, target_time: float):
+        pose = np.array(pose)
+        assert pose.shape == (6,)
+
+        message = {
+            'cmd': Command.ADD_WAYPOINT.value,
+            'target_pose': pose,
+            'gripper_pos': gripper_pos,
+            'target_time': target_time
+        }
+        self.input_queue.put(message)
+    
+    def update_trajectory(self):
+        message = {
+            'cmd': Command.UPDATE_TRAJECTORY.value,
+        }
+        self.input_queue.put(message)
+
     def reset_to_home(self):
         self.reset_success.value = False
         message = {
@@ -203,6 +223,8 @@ class Arx5Controller(mp.Process):
         # gain['kd'] = gain['kd'] * 0.2
         # self.robot_client.set_gain(gain)
         np.set_printoptions(precision=3, suppress=True)
+
+        self.waypoint_buffer = []
 
         try:
 
@@ -326,6 +348,73 @@ class Arx5Controller(mp.Process):
                         )
                         self.reset_success.value = True
 
+                    elif cmd == Command.ADD_WAYPOINT.value:
+                        if len(self.waypoint_buffer) > 0:
+                            last_waypoint_time = self.waypoint_buffer[-1]['target_time']
+                            if command['target_time'] <= last_waypoint_time:
+                                print(f"[Arx5Controller] Waypoint time {command['target_time']:.3f} is not in the future, skipping")
+                                continue
+                        self.waypoint_buffer.append(command)
+                    elif cmd == Command.UPDATE_TRAJECTORY.value:
+                        if len(self.waypoint_buffer) == 0:
+                            print(f"[Arx5Controller] No new waypoints to update trajectory")
+                            continue
+                        start_time = time.monotonic()
+                        # Dynamic latency matching
+                        matching_dt = 0.01
+                        pose_samples = np.zeros((3, 6))
+                        pose_samples[0, :] = pose_interp(t_now - matching_dt)
+                        pose_samples[1, :] = pose_interp(t_now)
+                        pose_samples[2, :] = pose_interp(t_now + matching_dt)
+                        
+                        input_poses = np.array([cmd["target_pose"] for cmd in self.waypoint_buffer]) # (N, 6)
+                        input_times = np.array([cmd["target_time"] for cmd in self.waypoint_buffer])
+                        input_gripper_pos = np.array([cmd["gripper_pos"] for cmd in self.waypoint_buffer])
+                        input_pose_interp = PoseTrajectoryInterpolator(
+                            times=input_times - input_times[0],
+                            poses=input_poses
+                        )
+                        
+                        latency_precision = 0.02
+                        max_latency = 1.2
+                        smoothing_time = 0.4
+                        errors = []
+                        error_weights = np.array([1, 1, 1, 0.1, 0.1, 0.1]) # x, y, z, rx, ry, rz
+                        for latency in np.arange(matching_dt, max_latency, latency_precision):
+                            input_pose_samples = np.zeros((3, 6))
+                            input_pose_samples[0, :] = input_pose_interp(latency - matching_dt)
+                            input_pose_samples[1, :] = input_pose_interp(latency)
+                            input_pose_samples[2, :] = input_pose_interp(latency + matching_dt)
+                            error = np.sum(np.abs(input_pose_samples - pose_samples) * error_weights)
+                            errors.append(error)
+                        errors = np.array(errors)
+                        best_latency = np.arange(matching_dt, max_latency, latency_precision)[np.argmin(errors)]
+
+                        smoothened_input_poses = input_poses
+                        new_times = input_times - input_times[0] + t_now - best_latency
+                        for i in range((smoothened_input_poses.shape[0])):
+                            if new_times[i] < t_now:
+                                smoothened_input_poses[i] = pose_interp(new_times[i])
+                            elif t_now <= new_times[i] < t_now + smoothing_time:
+                                alpha = (new_times[i] - t_now) / smoothing_time
+                                smoothened_input_poses[i] = (1 - alpha) * pose_interp(new_times[i]) + alpha * input_poses[i]
+                            else:
+                                smoothened_input_poses[i] = input_poses[i]
+                        
+                        pose_interp = PoseTrajectoryInterpolator(
+                            times = new_times,
+                            poses = smoothened_input_poses
+                        )
+                        extended_gripper_pos = np.zeros_like(input_poses)
+                        extended_gripper_pos[:, 0] = input_gripper_pos
+                        gripper_pos_interp = PoseTrajectoryInterpolator(
+                            times = new_times,
+                            poses = extended_gripper_pos
+                        )
+                        if self.verbose:
+                            print(f"[Arx5Controller] latency: {best_latency:.3f}s, error: {errors.min():.3f}, time: {time.monotonic() - start_time:.3f}s")
+                        # clear buffer
+                        self.waypoint_buffer = []
                     else:
                         keep_running = False
                         print(f"[Arx5Controller] Unknown command {cmd}")

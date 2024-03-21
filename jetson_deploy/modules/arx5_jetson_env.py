@@ -405,7 +405,8 @@ class Arx5JetsonEnv:
     def exec_actions(self, 
             actions: np.ndarray, 
             timestamps: np.ndarray,
-            compensate_latency=False):
+            compensate_latency=False,
+            dynamic_latency=False):
         assert self.is_ready
         if not isinstance(actions, np.ndarray):
             actions = np.array(actions)
@@ -422,23 +423,39 @@ class Arx5JetsonEnv:
         assert new_actions.shape[1] % len(self.robots) == 0
 
         # schedule waypoints
-        for i in range(len(new_actions)):
-            for robot_idx, (robot, rc) in enumerate(zip(self.robots, self.robots_config)):
-                r_latency = rc['robot_action_latency'] if compensate_latency else 0.0
-                r_actions = new_actions[i, 7 * robot_idx + 0: 7 * robot_idx + 6]
-                g_actions = new_actions[i, 7 * robot_idx + 6]
-                robot.schedule_waypoint(
-                    pose=r_actions,
-                    gripper_pos=g_actions,
-                    target_time=new_timestamps[i] - r_latency
-                )
 
+        if not dynamic_latency:
+            for i in range(len(new_actions)):
+                for robot_idx, (robot, rc) in enumerate(zip(self.robots, self.robots_config)):
+                    r_latency = rc['robot_action_latency'] if compensate_latency else 0.0
+                    r_actions = new_actions[i, 7 * robot_idx + 0: 7 * robot_idx + 6]
+                    g_actions = new_actions[i, 7 * robot_idx + 6]
+                    robot.schedule_waypoint(
+                        pose=r_actions,
+                        gripper_pos=g_actions,
+                        target_time=new_timestamps[i] - r_latency
+                    )
+        else:
+            for robot_idx, (robot, rc) in enumerate(zip(self.robots, self.robots_config)):
+                for i in range(len(new_actions)):
+                    r_actions = new_actions[i, 7 * robot_idx + 0: 7 * robot_idx + 6]
+                    g_actions = new_actions[i, 7 * robot_idx + 6]
+                    robot.add_waypoint(
+                        pose=r_actions,
+                        gripper_pos=g_actions,
+                        target_time=new_timestamps[i]
+                    )
+                robot.update_trajectory()
+
+            
+                
         # record actions
         if self.action_accumulator is not None:
             self.action_accumulator.put(
                 new_actions,
                 new_timestamps
             )
+
     
     def get_robot_state(self):
         return [robot.get_state() for robot in self.robots]
