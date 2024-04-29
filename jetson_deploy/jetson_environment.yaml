@@ -245,7 +245,7 @@ dependencies:
   - zlib=1.2.13=h31becfc_5
   - zstd=1.5.5=h4c53e97_0
   - pip:
-      - ./torch-2.1.0-cp310-cp310-linux_aarch64.whl
+      # - ./torch-2.1.0-cp310-cp310-linux_aarch64.whl
       - atomics==1.0.2
       - cffi==1.16.0
       - filelock==3.13.1
@@ -260,7 +260,7 @@ dependencies:
       - pycparser==2.21
       - spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz
       - sympy==1.12
-      - ur-rtde==1.5.7
+      # - ur-rtde==1.5.7
       - zerorpc==0.6.3
       - zope-event==5.0
       - zope-interface==6.2
