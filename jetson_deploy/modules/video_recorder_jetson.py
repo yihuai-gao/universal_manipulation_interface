@@ -21,6 +21,7 @@ class VideoRecorderJetson(mp.Process):
         input_pix_fmt,
         buffer_size=128,
         no_repeat=False,
+        enable_recorder=True,
         # options for codec
         **kwargs     
     ):
@@ -30,6 +31,7 @@ class VideoRecorderJetson(mp.Process):
         self.buffer_size = buffer_size
         self.no_repeat = no_repeat
         self.kwargs = kwargs
+        self.enable_recorder = enable_recorder
         
         self.img_queue = None
         self.cmd_queue = None
@@ -223,9 +225,47 @@ class VideoRecorderJetson(mp.Process):
                 bit_rate = self.bit_rate
             else:
                 bit_rate = 8000*1000
-            with GstreamerPipeline(framerate = self.fps, bitrate=bit_rate) as pipeline:
-                # loop
-                pipeline.start_recording(video_path)
+
+            if self.enable_recorder:
+                with GstreamerPipeline(framerate = self.fps, bitrate=bit_rate) as pipeline:
+                    # loop
+                    pipeline.start_recording(video_path)
+                    while not self.stop_event.is_set():
+                        try:
+                            command = self.cmd_queue.get()
+                            cmd = int(command['cmd'])
+                            if cmd == self.Command.STOP_RECORDING.value:
+                                break
+                            elif cmd == self.Command.START_RECORDING.value:
+                                continue
+                            else:
+                                raise RuntimeError("Unknown command: ", cmd)
+                        except Empty:
+                            pass
+                        
+                        try:
+                            with self.img_queue.get_view() as data:
+                                img = data['img']
+                                repeat = data['repeat']
+                                for i in range(repeat):
+                                    pipeline.encode_img(img)
+                        except Empty:
+                            time.sleep(0.1/self.fps)
+                            
+                    # Flush queue
+                    try:
+                        while not self.img_queue.empty():
+                            with self.img_queue.get_view() as data:
+                                img = data['img']
+                                repeat = data['repeat']
+                                for i in range(repeat):
+                                    pipeline.encode_img(img) 
+                    except Empty:
+                        pass
+                    pipeline.stop_recording()
+
+            else:
+                # If gstreamer is not setup, will just keep the loop running
                 while not self.stop_event.is_set():
                     try:
                         command = self.cmd_queue.get()
@@ -243,21 +283,16 @@ class VideoRecorderJetson(mp.Process):
                         with self.img_queue.get_view() as data:
                             img = data['img']
                             repeat = data['repeat']
-                            for i in range(repeat):
-                                pipeline.encode_img(img)
                     except Empty:
                         time.sleep(0.1/self.fps)
-                        
-                # Flush queue
-                try:
-                    while not self.img_queue.empty():
-                        with self.img_queue.get_view() as data:
-                            img = data['img']
-                            repeat = data['repeat']
-                            for i in range(repeat):
-                                pipeline.encode_img(img) 
-                except Empty:
-                    pass
-                pipeline.stop_recording()
 
+
+                    # Flush queue
+                    try:
+                        while not self.img_queue.empty():
+                            with self.img_queue.get_view() as data:
+                                img = data['img']
+                                repeat = data['repeat']
+                    except Empty:
+                        pass
 

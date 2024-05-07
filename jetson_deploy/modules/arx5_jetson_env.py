@@ -195,10 +195,6 @@ class Arx5JetsonEnv:
                 rgb_to_bgr=False
             )
 
-        cube_diag = np.linalg.norm([1,1,1])
-        j_init = np.array([0,-90,-90,-90,90,0]) / 180 * np.pi
-        if not init_joints:
-            j_init = None
 
         robots: List[Arx5Controller] = list()
         for rc in robots_config:
@@ -301,7 +297,6 @@ class Arx5JetsonEnv:
 
         "observation dict"
         assert self.is_ready
-
         # get data
         # 60 Hz, camera_calibrated_timestamp
         k = math.ceil(
