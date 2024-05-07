@@ -11,7 +11,6 @@ from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 
 from umi.common.pose_trajectory_interpolator import PoseTrajectoryInterpolator
 import time
-import zmq
 from jetson_deploy.modules.arx5_zmq_client import Arx5Client
 import numpy.typing as npt
 
