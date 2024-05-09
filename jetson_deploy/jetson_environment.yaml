@@ -159,7 +159,7 @@ dependencies:
   - omegaconf=2.3.0=pyhd8ed1ab_0
   - openh264=2.4.1=h2f0025b_0
   - openjpeg=2.5.0=h0d9d63b_3
-  - openssl=3.2.1=h31becfc_0
+  - openssl=3.3.0=h31becfc_0
   - p11-kit=0.24.1=h9f2702f_0
   - packaging=23.2=pyhd8ed1ab_0
   - pandas=2.2.1=py310hf9cab1f_0
@@ -207,6 +207,7 @@ dependencies:
   - tk=8.6.13=h194ca79_0
   - torchvision=0.16.1=cpu_py310h784d778_3
   - tqdm=4.66.2=pyhd8ed1ab_0
+  - transforms3d=0.4.1=pyhd8ed1ab_0
   - typing-extensions=4.10.0=hd8ed1ab_0
   - typing_extensions=4.10.0=pyha770c72_0
   - tzdata=2024a=h0c530f3_0
@@ -245,7 +246,6 @@ dependencies:
   - zlib=1.2.13=h31becfc_5
   - zstd=1.5.5=h4c53e97_0
   - pip:
-      # - ./torch-2.1.0-cp310-cp310-linux_aarch64.whl
       - atomics==1.0.2
       - cffi==1.16.0
       - filelock==3.13.1

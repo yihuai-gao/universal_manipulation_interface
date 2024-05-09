@@ -1,3 +1,9 @@
+import sys
+import os
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(ROOT_DIR)
+
 import enum
 from typing import Optional
 import rclpy
@@ -7,9 +13,10 @@ import multiprocessing as mp
 from multiprocessing.managers import SharedMemoryManager
 import numpy as np
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
-
+from robot_state.msg import EEFState, EEFTraj
 import time
-
+from transforms3d import quaternions
+import copy
 class Command(enum.Enum):
     STOP = 0
     SERVOL = 1
@@ -24,25 +31,35 @@ class Go2Arx5Listener(Node):
         super().__init__('go2_arx5_state_listener')
         # qos_profile = QoSProfile(depth=1, history=rclpy.qos.HistoryPolicy.KEEP_LAST)
         self.eef_state_sub = self.create_subscription(
-            String,  # Replace with your message type
-            'eef_state',  # Replace with your topic name
+            EEFState,  # Replace with your message type
+            '/go2_arx5/eef_state',  # Replace with your topic name
             self.listener_callback,
             10)
         
-        
         self.received_msg = None
+        self.msg_dict = None
     
-    def listener_callback(self, msg):
+    def listener_callback(self, msg:EEFState):
         self.received_msg = msg
 
-    def get_dict(self):
-        assert self.received_msg is not None
-        return { # TODO: check the actual message type
-            "ActualTCPPose": self.received_msg.actual_pose,
-            "gripper_position": self.received_msg.gripper_position,
-            "robot_receive_timestamp": self.received_msg.receive_timestamp,
-            "robot_timestamp": self.received_msg.timestamp
+        eef_translation = msg.eef_pose[:3]
+        eef_rotation_quat = msg.eef_pose[3:]
+        vec, theta = quaternions.quat2axangle(eef_rotation_quat)
+        eef_rotation_vec = vec * theta
+        actual_tcp_pose = np.zeros(6)
+        actual_tcp_pose[:3] = eef_translation
+        actual_tcp_pose[3:] = eef_rotation_vec
+        self.msg_dict = { # TODO: check the actual message type
+            "ActualTCPPose": actual_tcp_pose,
+            "gripper_position": msg.gripper_pos,
+            "robot_receive_timestamp": time.time(),
+            "robot_timestamp": float(msg.tick)/1000
         }
+
+    def get_dict(self):
+        return copy.deepcopy(self.msg_dict)
+
+        
 
 
 class Go2Arx5Publisher(Node):
@@ -51,11 +68,38 @@ class Go2Arx5Publisher(Node):
         super().__init__('go2_arx5_traj_publisher')
 
         self.eef_traj_pub = self.create_publisher(
-            String,  # Replace with your message type
-            'eef_traj',  # Replace with your topic name
+            EEFTraj,  # Replace with your message type
+            '/policy_output/eef_traj',  # Replace with your topic name
             100)
-    def publish_target_traj(self, pose_traj, gripper_traj, timestamps):
-        ...
+    def publish_target_traj(self, pose_traj: np.ndarray, gripper_traj: np.ndarray, timestamps: np.ndarray):
+        # pose_traj: (N, 6), gripper_traj: (N,), timestamps: (N,)
+        
+        assert isinstance(pose_traj, np.ndarray)
+        assert isinstance(gripper_traj, np.ndarray)
+        assert isinstance(timestamps, np.ndarray)
+        assert len(pose_traj.shape) == 2
+        assert pose_traj.shape[1] == 6
+        assert gripper_traj.shape[0] == pose_traj.shape[0] == timestamps.shape[0]
+        
+        # Convert rotvec to quaternion
+        eef_traj = EEFTraj()
+        eef_frames = []
+        for i in range(len(pose_traj)):
+            pose = pose_traj[i]
+            eef_frame = EEFState()
+            theta = np.linalg.norm(pose[3:])
+            if theta > 1e-6:
+                vec = pose[3:] / theta
+            else:
+                vec = np.zeros(3)
+            eef_frame.eef_pose[:3] = pose[:3]
+            eef_frame.eef_pose[3:] = quaternions.axangle2quat(vec, theta)
+            eef_frame.gripper_pos = float(gripper_traj[i])
+            eef_frame.tick = int(timestamps[i] * 1000)
+            eef_frames.append(eef_frame)
+            
+        eef_traj.traj = eef_frames
+        self.eef_traj_pub.publish(eef_traj)
 
 
 
@@ -69,6 +113,8 @@ class Go2Arx5Controller(mp.Process):
             verbose=True,
             receive_latency: float = 0.0,
         ):
+        super().__init__(name="Go2Arx5Controller")
+        
         self.shm_manager = shm_manager
         self.verbose = verbose
 
@@ -94,8 +140,7 @@ class Go2Arx5Controller(mp.Process):
         self.ring_buffer = ring_buffer
         self.receive_latency = receive_latency
 
-        self.pub_node = Go2Arx5Publisher()
-        rclpy.init()
+        self.pub_node: Optional[Go2Arx5Publisher] = None
 
         # Should be initialized in the subprocess
         self.sub_node: Go2Arx5Listener
@@ -107,14 +152,17 @@ class Go2Arx5Controller(mp.Process):
         super().start()
         if wait:
             self.start_wait()
+        rclpy.init()
+        self.pub_node = Go2Arx5Publisher()
+        print("Pub node initialized")
         if self.verbose:
             print(f"[Go2Arx5Controller] Controller process spawned at {self.pid}")
 
     
     def stop(self, wait=True):
+        rclpy.shutdown()
         if wait:
             self.stop_wait()
-        rclpy.shutdown()
         if self.verbose:
             print(f"[Go2Arx5Controller] Controller process terminated at {self.pid}")
 
@@ -152,7 +200,9 @@ class Go2Arx5Controller(mp.Process):
     
     # ========= command methods ============
     def send_trajectory(self, pose_traj, gripper_traj, timestamps):
-        self.pub_node.publish_target_traj(pose_traj, gripper_traj, timestamps)
+        if self.pub_node is not None:
+            self.pub_node.publish_target_traj(pose_traj, gripper_traj, timestamps)
+        
 
 
     # ========= main loop (only for listener update) ============
@@ -172,3 +222,24 @@ class Go2Arx5Controller(mp.Process):
                     iter_idx += 1
         finally:
             rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    # Test subscriber output
+    with SharedMemoryManager() as shm_manager:
+        with Go2Arx5Controller(shm_manager=shm_manager) as go2_arx5_controller:
+            while True:
+                state = go2_arx5_controller.get_state()
+                print(state)
+                tcp_pose = state["ActualTCPPose"]
+                gripper_pos = state["gripper_position"]
+                timestamp = state["robot_timestamp"]
+                go2_arx5_controller.send_trajectory(
+                    tcp_pose.reshape(1,6).repeat(10, axis=0),
+                    gripper_pos.reshape(1,).repeat(10, axis=0),
+                    timestamp.reshape(1,).repeat(10, axis=0),
+                )
+                time.sleep(0.05)
+
+
+    
