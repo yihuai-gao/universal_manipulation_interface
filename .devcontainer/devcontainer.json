@@ -1,0 +1,32 @@
+{
+    "name": "umi-jetson",
+    "build": {
+      "dockerfile": "${localWorkspaceFolder}/jetson_deploy/docker/Dockerfile",
+      "args": {
+        "USERNAME": "real",
+        "USER_UID": "1000",
+        "USER_GID": "1000",
+      },
+    },
+    "runArgs": [
+      "--network=host",
+      "--volume=/tmp/.X11-unix/:/tmp/.X11-unix/", // For GUI display
+      "--device=/dev/video0:/dev/video0", // For camera
+      "--device=/dev/video1:/dev/video1", // For camera
+      "--device=/dev/snd:/dev/snd", // For audio
+      "--volume=/dev/v4l:/dev/v4l", // For v4l2
+
+    ],
+    "remoteEnv": {
+      "DISPLAY": "${localEnv:DISPLAY}"
+    },
+    "workspaceMount": "source=${localWorkspaceFolder},target=/home/real/${localWorkspaceFolderBasename},type=bind",
+    "workspaceFolder": "/home/real/${localWorkspaceFolderBasename}", // Only for aliengo development
+    "mounts": [
+      // If you have never used zsh, you can bind .bash_history in your host machine to .zsh_history in the container
+      // "source=${localEnv:HOME}${localEnv:USERPROFILE}/.bash_history,target=/home/real/.zsh_history,type=bind",
+      // and comment the following line
+      "source=${localEnv:HOME}${localEnv:USERPROFILE}/.zsh_history,target=/home/real/.zsh_history,type=bind",
+      "source=${localEnv:HOME}${localEnv:USERPROFILE}/repositories/unitree-api,target=/home/real/unitree-api,type=bind",
+    ],
+  }

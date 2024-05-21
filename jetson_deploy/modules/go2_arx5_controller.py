@@ -30,11 +30,11 @@ class Go2Arx5Listener(Node):
     def __init__(self):
         super().__init__('go2_arx5_state_listener')
         # qos_profile = QoSProfile(depth=1, history=rclpy.qos.HistoryPolicy.KEEP_LAST)
+        
         self.eef_state_sub = self.create_subscription(
-            EEFState,  # Replace with your message type
-            '/go2_arx5/eef_state',  # Replace with your topic name
-            self.listener_callback,
-            10)
+            EEFState, "go2_arx5/eef_state", self.listener_callback, 10
+        )
+
         
         self.received_msg = None
         self.msg_dict = None
@@ -69,8 +69,8 @@ class Go2Arx5Publisher(Node):
 
         self.eef_traj_pub = self.create_publisher(
             EEFTraj,  # Replace with your message type
-            '/policy_output/eef_traj',  # Replace with your topic name
-            100)
+            'go2_arx5/eef_traj',  # Replace with your topic name
+            10)
     def publish_target_traj(self, pose_traj: np.ndarray, gripper_traj: np.ndarray, timestamps: np.ndarray):
         # pose_traj: (N, 6), gripper_traj: (N,), timestamps: (N,)
         

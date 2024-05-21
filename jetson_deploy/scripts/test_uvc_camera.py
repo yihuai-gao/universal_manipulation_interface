@@ -27,6 +27,7 @@ def test_single():
     time.sleep(0.1)
     v4l_paths = get_sorted_v4l_paths()
     v4l_path = v4l_paths[0]
+    print(f"v4l_path: {v4l_path}")
     
     with SharedMemoryManager() as shm_manager:
         # video_recorder = VideoRecorder.create_h264(
@@ -42,7 +43,8 @@ def test_single():
             fps=30,
             codec='h264_nvenc',
             input_pix_fmt='bgr24',
-            bit_rate=6000*1000
+            bit_rate=6000*1000,
+            enable_recorder=False
         )
 
         with UvcCamera(
@@ -61,17 +63,25 @@ def test_single():
 
             data = None
             episode_cnt = 0
+            prev_timestamp = time.time()
+            frame_cnt = 0
             while True:
+                start_time = time.time()
                 data = camera.get(out=data)
                 t = time.time()
                 # print('capture_latency', data['receive_timestamp']-data['capture_timestamp'], 'receive_latency', t - data['receive_timestamp'])
                 # print('receive', t - data['receive_timestamp'])
 
                 dt = time.time() - data['timestamp']
-                print(data['camera_capture_timestamp'] - data['camera_receive_timestamp'])
+
+                print(f"frame: {frame_cnt}, loop time: {time.time() - prev_timestamp} camera get time: {time.time() - start_time}")
+                frame_cnt += 1
+                prev_timestamp = time.time()
 
                 bgr = data['color']
-                cv2.imshow('default', bgr)
+                # downsample bgr to 1/4 resolution
+                downsampled_bgr = cv2.resize(bgr, (bgr.shape[1]//4, bgr.shape[0]//4))
+                cv2.imshow('default', downsampled_bgr)
                 key = cv2.pollKey()
                 if key == ord('q'):
                     break
@@ -151,7 +161,8 @@ def test_multiple():
             fps=fps,
             codec='h264_nvenc',
             input_pix_fmt='bgr24',
-            bit_rate=bit_rate
+            bit_rate=bit_rate,
+            enable_recorder=False,
         ))
         def vis_tf(data, input_res=res):
             img = data['color']
@@ -196,5 +207,5 @@ def test_multiple():
 
 
 if __name__ == "__main__":
-    test_single()
-    # test_multiple()
+    # test_single()
+    test_multiple()
