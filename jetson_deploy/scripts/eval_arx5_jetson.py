@@ -168,7 +168,7 @@ def main(input, output, policy_ip, policy_port,
     robots_config = [
         {
             "robot_type": "arx5",
-            "robot_ip": "yihuai-adapter1.stanford.edu",
+            "robot_ip": "192.168.123.18",
             "robot_port": 8765,
             "robot_obs_latency": 0.005, # TODO: need to measure
             "robot_action_latency": 0.04, # TODO: need to measure
@@ -231,6 +231,7 @@ def main(input, output, policy_ip, policy_port,
 
             print(f"Warming up policy inference")
             obs = env.get_obs()
+            print(obs)
             episode_start_pose = list()
             for robot_id in range(len(robots_config)):
                 pose = np.concatenate([

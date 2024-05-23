@@ -66,9 +66,12 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 @click.option('--frequency', '-f', default=10, type=float, help="Control frequency in Hz.")
 @click.option('--command_latency', '-cl', default=0.01, type=float, help="Latency between receiving SapceMouse command to executing on Robot in Sec.")
 @click.option('-nm', '--no_mirror', is_flag=True, default=False)
+@click.option('--init_joints', '-j', is_flag=True, default=False, help="Whether to initialize robot joint configuration in the beginning.")
+@click.option('--camera_reorder', '-cr', default='0')
+@click.option('--mirror_swap', is_flag=True, default=False)
 def main(input, output, policy_ip, policy_port, 
-    steps_per_inference, max_duration,
-    frequency, command_latency, no_mirror):
+    steps_per_inference,
+    frequency, command_latency, no_mirror, init_joints, camera_reorder, mirror_swap):
 
     # Manually assign the process to avoid conflicts TODO: Manage this in a better way
     pid = os.getpid()
@@ -77,8 +80,8 @@ def main(input, output, policy_ip, policy_port,
     # For human control
     max_gripper_width = 0.085
     gripper_speed = 0.02
-    cartesian_speed = 0.2
-    orientation_speed = 0.4
+    cartesian_speed = 0.1
+    orientation_speed = 0.1
     
     os.makedirs(output, exist_ok=True)
     os.makedirs(os.path.join(output, 'obs'), exist_ok=True)
@@ -117,7 +120,28 @@ def main(input, output, policy_ip, policy_port,
     with SharedMemoryManager() as shm_manager:
         with Spacemouse(shm_manager=shm_manager) as sm, \
             KeystrokeCounter() as key_counter, \
-            Go2Arx5Env() as env:
+            Go2Arx5Env(
+                output_dir=output, 
+                robots_config=robots_config,
+                frequency=frequency,
+                obs_image_resolution=obs_res,
+                obs_float32=True,
+                camera_reorder=[int(x) for x in camera_reorder],
+                init_joints=init_joints,
+                enable_multi_cam_vis=False,
+                # latency
+                camera_obs_latency=0.17,
+                # obs
+                camera_obs_horizon=cfg.task.shape_meta.obs.camera0_rgb.horizon,
+                robot_obs_horizon=cfg.task.shape_meta.obs.robot0_eef_pos.horizon,
+                no_mirror=no_mirror,
+                # fisheye_converter=fisheye_converter,
+                mirror_swap=mirror_swap,
+                # action
+                max_pos_speed=2.0,
+                max_rot_speed=6.0,
+                shm_manager=shm_manager
+            ) as env:
             cv2.setNumThreads(2)
             
             cv2.setNumThreads(2)
@@ -129,6 +153,18 @@ def main(input, output, policy_ip, policy_port,
                 time.sleep(0.1)
             print("Env is ready")
 
+
+            print(f"Warming up video recording")
+            video_dir = env.video_dir.joinpath("test")
+            video_dir.mkdir(exist_ok=True, parents=True)
+            n_cameras = env.camera.n_cameras
+            video_paths = []
+            for i in range(n_cameras):
+                video_path = str(video_dir.joinpath(f"{i}.mp4").absolute())
+                video_paths.append(video_path)
+            env.camera.start_recording(
+                video_path=video_paths,
+                start_time=time.time())
         
             print(f"Warming up policy inference")
             obs = env.get_obs()
@@ -139,12 +175,12 @@ def main(input, output, policy_ip, policy_port,
                     obs[f'robot{robot_id}_eef_rot_axis_angle']
                 ], axis=-1)[-1]
                 episode_start_pose.append(pose)
+            print(obs)
             obs_dict_np = get_real_umi_obs_dict(
                 env_obs=obs, shape_meta=cfg.task.shape_meta, 
                 obs_pose_repr=obs_pose_rep,
                 tx_robot1_robot0=np.eye(4),
                 episode_start_pose=episode_start_pose)
-            
             socket.send_pyobj(obs_dict_np)
             print(f"    obs_dict_np sent to PolicyInferenceNode at tcp://{policy_ip}:{policy_port}. Waiting for response.")
             start_time = time.monotonic()
@@ -153,6 +189,8 @@ def main(input, output, policy_ip, policy_port,
                 print(f"Inference from PolicyInferenceNode failed: {action}. Please check the model.")
                 exit(1)
             print(f"Got response from PolicyInferenceNode. Inference time: {time.monotonic() - start_time:.3f} s")
+            env.camera.stop_recording()
+            print(f"Warming up video recording finished. Video stored to {env.video_dir.joinpath(str(0))}")
 
             assert action.shape[-1] == 10 * len(robots_config)
             action = get_real_umi_action(action, obs, action_pose_repr)
@@ -164,6 +202,7 @@ def main(input, output, policy_ip, policy_port,
                 # ========= human control loop ==========
                 print("Human in control!")
                 robot_states = env.get_robot_state()
+                print("get_robot_state")
                 target_pose = np.stack([rs['ActualTCPPose'] for rs in robot_states])
                 gripper_target_pos = np.asarray([rs['gripper_position'] for rs in robot_states])
                 
@@ -184,7 +223,35 @@ def main(input, output, policy_ip, policy_port,
                     episode_id = env.replay_buffer.n_episodes
                     os.makedirs(os.path.join(output, 'obs', f'{episode_id}'), exist_ok=True)
                     os.makedirs(os.path.join(output, 'action', f'{episode_id}'), exist_ok=True)
+
                     
+                    vis_img = obs[f'camera0_rgb'][-1]
+                    obs_left_img = obs['camera0_rgb'][-1]
+                    obs_right_img = obs['camera0_rgb'][-1]
+                    vis_img = np.concatenate([obs_left_img, obs_right_img, vis_img], axis=1)
+                    
+                    text = f'Episode: {episode_id}'
+                    cv2.putText(
+                        vis_img,
+                        text,
+                        (10,20),
+                        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                        fontScale=0.5,
+                        lineType=cv2.LINE_AA,
+                        thickness=3,
+                        color=(0,0,0)
+                    )
+                    cv2.putText(
+                        vis_img,
+                        text,
+                        (10,20),
+                        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                        fontScale=0.5,
+                        thickness=1,
+                        color=(255,255,255)
+                    )
+                    cv2.imshow('default', vis_img[...,::-1])
+                    _ = cv2.pollKey()
                     press_events = key_counter.get_press_events()
                     start_policy = False
     
@@ -225,16 +292,7 @@ def main(input, output, policy_ip, policy_port,
 
 
                     dpos = 0
-                    if sm.is_button_pressed(0) and sm.is_button_pressed(1):
-                        print("Reset robot arm to home. Please wait...")
-                        for robot_idx in control_robot_idx_list:
-                            env.robots[robot_idx].reset_to_home()
-                            robot_states = env.get_robot_state()
-                            target_pose[robot_idx] = np.stack([rs['ActualTCPPose'] for rs in robot_states])
-                            gripper_target_pos[robot_idx] = np.asarray([rs['gripper_position'] for rs in robot_states])
-                                
-
-                    elif sm.is_button_pressed(0):
+                    if sm.is_button_pressed(0):
                         # close gripper
                         dpos = -gripper_speed / frequency
                     elif sm.is_button_pressed(1):
@@ -253,8 +311,7 @@ def main(input, output, policy_ip, policy_port,
                     # execute teleop command
                     env.exec_actions(
                         actions=[action], 
-                        timestamps=[t_command_target-time.monotonic()+time.time()],
-                        compensate_latency=False)
+                        timestamps=[t_command_target-time.monotonic()+time.time()])
                     precise_wait(t_cycle_end)
                     iter_idx += 1
                     
@@ -334,8 +391,6 @@ def main(input, output, policy_ip, policy_port,
                         env.exec_actions(
                             actions=this_target_poses,
                             timestamps=action_timestamps,
-                            # compensate_latency=True
-                            dynamic_latency=True
                         )
                         print(f"Submitted {len(this_target_poses)} steps of actions.")
 
@@ -347,7 +402,6 @@ def main(input, output, policy_ip, policy_port,
                         text = 'Episode: {}, Time: {:.1f}'.format(
                             episode_id, time.monotonic() - t_start
                         )
-                        
                         press_events = key_counter.get_press_events()
                         stop_episode = False
                         for key_stroke in press_events:
@@ -356,11 +410,12 @@ def main(input, output, policy_ip, policy_port,
                                 # Hand control back to human
                                 print('Stopped.')
                                 stop_episode = True
+                        print("Done getting ")
 
                         t_since_start = time.time() - eval_t_start
-                        if t_since_start > max_duration:
-                            print("Max Duration reached.")
-                            stop_episode = True
+                        # if t_since_start > max_duration:
+                        #     print("Max Duration reached.")
+                        #     stop_episode = True
                         if stop_episode:
                             env.end_episode()
                             break

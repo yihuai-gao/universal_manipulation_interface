@@ -17,6 +17,7 @@ from robot_state.msg import EEFState, EEFTraj
 import time
 from transforms3d import quaternions
 import copy
+import logging
 class Command(enum.Enum):
     STOP = 0
     SERVOL = 1
@@ -27,7 +28,7 @@ class Command(enum.Enum):
 
 
 class Go2Arx5Listener(Node):
-    def __init__(self):
+    def __init__(self, shared_start_time: mp.Value):
         super().__init__('go2_arx5_state_listener')
         # qos_profile = QoSProfile(depth=1, history=rclpy.qos.HistoryPolicy.KEEP_LAST)
         
@@ -35,12 +36,22 @@ class Go2Arx5Listener(Node):
             EEFState, "go2_arx5/eef_state", self.listener_callback, 10
         )
 
-        
+        self.shared_start_time = shared_start_time
         self.received_msg = None
         self.msg_dict = None
+        self.shared_start_time_update_cnt = 0
     
     def listener_callback(self, msg:EEFState):
         self.received_msg = msg
+
+        # Update start time
+        new_est_start_time = time.time() - float(msg.tick)/1000
+        self.shared_start_time_update_cnt += 1
+        # apply delta update to shared_start_time
+        if self.shared_start_time_update_cnt > 1 and abs(new_est_start_time - self.shared_start_time.value) > 0.1:
+            logging.warning(f"Shared start time is inconsistent: {new_est_start_time=} {self.shared_start_time.value=} {self.shared_start_time_update_cnt=}")
+        else:
+            self.shared_start_time.value = self.shared_start_time.value + (new_est_start_time - self.shared_start_time.value) / self.shared_start_time_update_cnt
 
         eef_translation = msg.eef_pose[:3]
         eef_rotation_quat = msg.eef_pose[3:]
@@ -53,8 +64,9 @@ class Go2Arx5Listener(Node):
             "ActualTCPPose": actual_tcp_pose,
             "gripper_position": msg.gripper_pos,
             "robot_receive_timestamp": time.time(),
-            "robot_timestamp": float(msg.tick)/1000
+            "robot_timestamp": float(msg.tick)/1000 + self.shared_start_time.value
         }
+
 
     def get_dict(self):
         return copy.deepcopy(self.msg_dict)
@@ -71,15 +83,17 @@ class Go2Arx5Publisher(Node):
             EEFTraj,  # Replace with your message type
             'go2_arx5/eef_traj',  # Replace with your topic name
             10)
-    def publish_target_traj(self, pose_traj: np.ndarray, gripper_traj: np.ndarray, timestamps: np.ndarray):
-        # pose_traj: (N, 6), gripper_traj: (N,), timestamps: (N,)
-        
+    def publish_target_traj(self, pose_traj: np.ndarray, gripper_traj: np.ndarray, robot_ticks_s: np.ndarray):
+        # pose_traj: (N, 6), gripper_traj: (N,), robot_ticks_s: (N,)
+        if len(pose_traj) == 0:
+            return
+        # print(f"{pose_traj.shape=} {gripper_traj.shape=} {robot_ticks_s.shape=}")
         assert isinstance(pose_traj, np.ndarray)
         assert isinstance(gripper_traj, np.ndarray)
-        assert isinstance(timestamps, np.ndarray)
+        assert isinstance(robot_ticks_s, np.ndarray)
         assert len(pose_traj.shape) == 2
         assert pose_traj.shape[1] == 6
-        assert gripper_traj.shape[0] == pose_traj.shape[0] == timestamps.shape[0]
+        assert gripper_traj.shape[0] == pose_traj.shape[0] == robot_ticks_s.shape[0]
         
         # Convert rotvec to quaternion
         eef_traj = EEFTraj()
@@ -95,7 +109,7 @@ class Go2Arx5Publisher(Node):
             eef_frame.eef_pose[:3] = pose[:3]
             eef_frame.eef_pose[3:] = quaternions.axangle2quat(vec, theta)
             eef_frame.gripper_pos = float(gripper_traj[i])
-            eef_frame.tick = int(timestamps[i] * 1000)
+            eef_frame.tick = int(robot_ticks_s[i] * 1000)
             eef_frames.append(eef_frame)
             
         eef_traj.traj = eef_frames
@@ -145,6 +159,9 @@ class Go2Arx5Controller(mp.Process):
         # Should be initialized in the subprocess
         self.sub_node: Go2Arx5Listener
 
+
+        # create a shared float start_time to convert from robot tick to time.time()
+        self.robot_start_time = mp.Value('d', 0.0) # time.time() when the robot tick is 0
 
     
     # ========= launch method ===========
@@ -200,28 +217,35 @@ class Go2Arx5Controller(mp.Process):
     
     # ========= command methods ============
     def send_trajectory(self, pose_traj, gripper_traj, timestamps):
+
+        robot_ticks_s = timestamps - self.robot_start_time.value
+
+        robot_ticks_s += 0.1
         if self.pub_node is not None:
-            self.pub_node.publish_target_traj(pose_traj, gripper_traj, timestamps)
+            self.pub_node.publish_target_traj(pose_traj, gripper_traj, robot_ticks_s)
         
 
 
     # ========= main loop (only for listener update) ============
     def run(self):
         rclpy.init()
-        self.sub_node = Go2Arx5Listener()
+        self.sub_node = Go2Arx5Listener(self.robot_start_time)
         iter_idx = 0
-        try:
-            while rclpy.ok():
-                rclpy.spin_once(self.sub_node)
-                if self.sub_node.received_msg is not None:
-                    # update ring buffer
-                    self.ring_buffer.put(self.sub_node.get_dict())
-                    self.sub_node.received_msg = None
-                    if iter_idx == 0:
-                        self.ready_event.set()
-                    iter_idx += 1
-        finally:
-            rclpy.shutdown()
+        # try:
+        while rclpy.ok():
+            rclpy.spin_once(self.sub_node)
+            if self.sub_node.received_msg is not None:
+                # update ring buffer
+                state_dict = self.sub_node.get_dict()
+                if state_dict is not None:
+                    # print(f"{state_dict['robot_timestamp']=}")
+                    self.ring_buffer.put(state_dict)
+                self.sub_node.received_msg = None
+                if iter_idx == 0:
+                    self.ready_event.set()
+                iter_idx += 1
+        # finally:
+        #     rclpy.shutdown()
 
 
 if __name__ == "__main__":
@@ -230,14 +254,13 @@ if __name__ == "__main__":
         with Go2Arx5Controller(shm_manager=shm_manager) as go2_arx5_controller:
             while True:
                 state = go2_arx5_controller.get_state()
-                print(state)
                 tcp_pose = state["ActualTCPPose"]
                 gripper_pos = state["gripper_position"]
                 timestamp = state["robot_timestamp"]
                 go2_arx5_controller.send_trajectory(
-                    tcp_pose.reshape(1,6).repeat(10, axis=0),
-                    gripper_pos.reshape(1,).repeat(10, axis=0),
-                    timestamp.reshape(1,).repeat(10, axis=0),
+                    tcp_pose.reshape(1,6).repeat(1, axis=0),
+                    gripper_pos.reshape(1,).repeat(1, axis=0),
+                    timestamp.reshape(1,).repeat(1, axis=0),
                 )
                 time.sleep(0.05)
 

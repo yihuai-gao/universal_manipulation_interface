@@ -301,7 +301,7 @@ class Go2Arx5Env:
         All low-dim observations, interpolate with respect to 'current' time
         """
 
-        "observation dict"
+
         assert self.is_ready
         # get data
         # 60 Hz, camera_calibrated_timestamp
@@ -367,6 +367,7 @@ class Go2Arx5Env:
         # align robot obs
         robot_obs_timestamps = last_timestamp - (
             np.arange(self.robot_obs_horizon)[::-1] * self.robot_down_sample_steps * dt)
+
         for robot_idx, last_robot_data in enumerate(last_robots_data):
             robot_pose_interpolator = PoseInterpolator(
                 t=last_robot_data['robot_timestamp'], 
@@ -382,7 +383,6 @@ class Go2Arx5Env:
                 f'robot{robot_idx}_eef_rot_axis_angle': robot_pose[...,3:],
                 f'robot{robot_idx}_gripper_width': gripper_pos
             }
-            
             # update obs_data
             obs_data.update(robot_obs)
 
@@ -394,8 +394,8 @@ class Go2Arx5Env:
                 self.obs_accumulator.put(
                     data={
                         f'robot{robot_idx}_eef_pose': last_robot_data['ActualTCPPose'],
-                        f'robot{robot_idx}_joint_pos': last_robot_data['ActualQ'],
-                        f'robot{robot_idx}_joint_vel': last_robot_data['ActualQd'],
+                        # f'robot{robot_idx}_joint_pos': last_robot_data['ActualQ'],
+                        # f'robot{robot_idx}_joint_vel': last_robot_data['ActualQd'],
                         f'robot{robot_idx}_gripper_width': last_robot_data['gripper_position']
                     },
                     timestamps=last_robot_data['robot_timestamp']
@@ -487,8 +487,8 @@ class Go2Arx5Env:
             # get_obs and exec_actions, which will be in the same thread.
             # We don't need to worry new data come in here.
             end_time = float('inf')
-            for key, value in self.obs_accumulator.timestamps.items():
-                end_time = min(end_time, value[-1])
+            # for key, value in self.obs_accumulator.timestamps.items():
+            #     end_time = min(end_time, value[-1])
             end_time = min(end_time, self.action_accumulator.timestamps[-1])
 
             actions = self.action_accumulator.actions
