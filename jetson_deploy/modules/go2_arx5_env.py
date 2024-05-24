@@ -301,7 +301,6 @@ class Go2Arx5Env:
         All low-dim observations, interpolate with respect to 'current' time
         """
 
-
         assert self.is_ready
         # get data
         # 60 Hz, camera_calibrated_timestamp
@@ -312,7 +311,6 @@ class Go2Arx5Env:
         self.last_camera_data = self.camera.get(
             k=k, 
             out=self.last_camera_data)
-
         # both have more than n_obs_steps data
         last_robots_data = list()
         # 125/500 hz, robot_receive_timestamp
@@ -387,7 +385,6 @@ class Go2Arx5Env:
             obs_data.update(robot_obs)
 
 
-
         # accumulate obs
         if self.obs_accumulator is not None:
             for robot_idx, last_robot_data in enumerate(last_robots_data):
@@ -400,7 +397,6 @@ class Go2Arx5Env:
                     },
                     timestamps=last_robot_data['robot_timestamp']
                 )
-
         return obs_data
     
     def exec_actions(
@@ -511,16 +507,16 @@ class Go2Arx5Env:
                     robot_pose = robot_pose_interpolator(timestamps)
                     episode[f'robot{robot_idx}_eef_pos'] = robot_pose[:,:3]
                     episode[f'robot{robot_idx}_eef_rot_axis_angle'] = robot_pose[:,3:]
-                    joint_pos_interpolator = get_interp1d(
-                        np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_joint_pos']),
-                        np.array(self.obs_accumulator.data[f'robot{robot_idx}_joint_pos'])
-                    )
-                    joint_vel_interpolator = get_interp1d(
-                        np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_joint_vel']),
-                        np.array(self.obs_accumulator.data[f'robot{robot_idx}_joint_vel'])
-                    )
-                    episode[f'robot{robot_idx}_joint_pos'] = joint_pos_interpolator(timestamps)
-                    episode[f'robot{robot_idx}_joint_vel'] = joint_vel_interpolator(timestamps)
+                    # joint_pos_interpolator = get_interp1d(
+                    #     np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_joint_pos']),
+                    #     np.array(self.obs_accumulator.data[f'robot{robot_idx}_joint_pos'])
+                    # )
+                    # joint_vel_interpolator = get_interp1d(
+                    #     np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_joint_vel']),
+                    #     np.array(self.obs_accumulator.data[f'robot{robot_idx}_joint_vel'])
+                    # )
+                    # episode[f'robot{robot_idx}_joint_pos'] = joint_pos_interpolator(timestamps)
+                    # episode[f'robot{robot_idx}_joint_vel'] = joint_vel_interpolator(timestamps)
 
                     gripper_interpolator = get_interp1d(
                         t=np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_gripper_width']),

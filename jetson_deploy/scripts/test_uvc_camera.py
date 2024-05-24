@@ -44,7 +44,7 @@ def test_single():
             codec='h264_nvenc',
             input_pix_fmt='bgr24',
             bit_rate=6000*1000,
-            enable_recorder=False
+            enable_recorder=True
         )
 
         with UvcCamera(
@@ -162,7 +162,7 @@ def test_multiple():
             codec='h264_nvenc',
             input_pix_fmt='bgr24',
             bit_rate=bit_rate,
-            enable_recorder=False,
+            enable_recorder=True,
         ))
         def vis_tf(data, input_res=res):
             img = data['color']

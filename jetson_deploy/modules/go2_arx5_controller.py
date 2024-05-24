@@ -18,6 +18,7 @@ import time
 from transforms3d import quaternions
 import copy
 import logging
+import traceback
 class Command(enum.Enum):
     STOP = 0
     SERVOL = 1
@@ -33,7 +34,7 @@ class Go2Arx5Listener(Node):
         # qos_profile = QoSProfile(depth=1, history=rclpy.qos.HistoryPolicy.KEEP_LAST)
         
         self.eef_state_sub = self.create_subscription(
-            EEFState, "go2_arx5/eef_state", self.listener_callback, 10
+            EEFState, "go2_arx5/eef_state", self.listener_callback, 1
         )
 
         self.shared_start_time = shared_start_time
@@ -48,10 +49,11 @@ class Go2Arx5Listener(Node):
         new_est_start_time = time.time() - float(msg.tick)/1000
         self.shared_start_time_update_cnt += 1
         # apply delta update to shared_start_time
-        if self.shared_start_time_update_cnt > 1 and abs(new_est_start_time - self.shared_start_time.value) > 0.1:
-            logging.warning(f"Shared start time is inconsistent: {new_est_start_time=} {self.shared_start_time.value=} {self.shared_start_time_update_cnt=}")
-        else:
-            self.shared_start_time.value = self.shared_start_time.value + (new_est_start_time - self.shared_start_time.value) / self.shared_start_time_update_cnt
+        if self.shared_start_time_update_cnt < 100:
+            if self.shared_start_time_update_cnt > 1 and abs(new_est_start_time - self.shared_start_time.value) > 0.1:
+                logging.warning(f"Shared start time is inconsistent: {new_est_start_time=} {self.shared_start_time.value=} {self.shared_start_time_update_cnt=}")
+            else:
+                self.shared_start_time.value = self.shared_start_time.value + (new_est_start_time - self.shared_start_time.value) / self.shared_start_time_update_cnt
 
         eef_translation = msg.eef_pose[:3]
         eef_rotation_quat = msg.eef_pose[3:]
@@ -82,7 +84,7 @@ class Go2Arx5Publisher(Node):
         self.eef_traj_pub = self.create_publisher(
             EEFTraj,  # Replace with your message type
             'go2_arx5/eef_traj',  # Replace with your topic name
-            10)
+            1)
     def publish_target_traj(self, pose_traj: np.ndarray, gripper_traj: np.ndarray, robot_ticks_s: np.ndarray):
         # pose_traj: (N, 6), gripper_traj: (N,), robot_ticks_s: (N,)
         if len(pose_traj) == 0:
@@ -220,7 +222,6 @@ class Go2Arx5Controller(mp.Process):
 
         robot_ticks_s = timestamps - self.robot_start_time.value
 
-        robot_ticks_s += 0.1
         if self.pub_node is not None:
             self.pub_node.publish_target_traj(pose_traj, gripper_traj, robot_ticks_s)
         
@@ -231,21 +232,33 @@ class Go2Arx5Controller(mp.Process):
         rclpy.init()
         self.sub_node = Go2Arx5Listener(self.robot_start_time)
         iter_idx = 0
-        # try:
-        while rclpy.ok():
-            rclpy.spin_once(self.sub_node)
-            if self.sub_node.received_msg is not None:
-                # update ring buffer
-                state_dict = self.sub_node.get_dict()
-                if state_dict is not None:
-                    # print(f"{state_dict['robot_timestamp']=}")
-                    self.ring_buffer.put(state_dict)
-                self.sub_node.received_msg = None
-                if iter_idx == 0:
-                    self.ready_event.set()
-                iter_idx += 1
-        # finally:
-        #     rclpy.shutdown()
+        try:
+            prev_recieve_timestamp = 0.0
+            while rclpy.ok():
+                rclpy.spin_once(self.sub_node)
+                if self.sub_node.received_msg is not None:
+                    # update ring buffer
+                    state_dict = self.sub_node.get_dict()
+                    if state_dict["robot_timestamp"] <= prev_recieve_timestamp:
+                        logging.warning(f"Received message out of order: {state_dict['robot_timestamp']=} {prev_recieve_timestamp=}")
+                        continue
+                    prev_recieve_timestamp = state_dict["robot_timestamp"]
+                    if state_dict is not None:
+                        self.ring_buffer.put(state_dict)
+                    self.sub_node.received_msg = None
+                    if iter_idx == 0:
+                        self.ready_event.set()
+                    iter_idx += 1
+        except:
+            print(echo_exception())
+
+def echo_exception():
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+    # Extract unformatted traceback
+    tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+    # Print line of code where the exception occurred
+
+    return "".join(tb_lines)
 
 
 if __name__ == "__main__":
