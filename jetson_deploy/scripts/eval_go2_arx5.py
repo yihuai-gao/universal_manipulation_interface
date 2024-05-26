@@ -26,19 +26,16 @@ import traceback
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(ROOT_DIR)
-os.chdir(ROOT_DIR)
+if ROOT_DIR != "":
+    os.chdir(ROOT_DIR)
 
 # %%
 import os
-import pathlib
 import time
 from multiprocessing.managers import SharedMemoryManager
 
-import av
 import click
 import cv2
-import dill
-import hydra
 import numpy as np
 import scipy.spatial.transform as st
 from omegaconf import OmegaConf
@@ -51,7 +48,6 @@ from umi.real_world.real_inference_util import (get_real_obs_dict,
                                                 get_real_umi_obs_dict,
                                                 get_real_umi_action)
 from umi.real_world.spacemouse_shared_memory import Spacemouse
-from umi.common.pose_util import pose_to_mat, mat_to_pose
 from jetson_deploy.modules.go2_arx5_env import Go2Arx5Env
 import zmq
 
@@ -63,8 +59,8 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 @click.option('--output', '-o', required=True, help='Directory to save recording')
 @click.option('--policy_ip', default='localhost')
 @click.option('--policy_port', default=8766)
-@click.option('--steps_per_inference', '-si', default=8, type=int, help="Action horizon for inference.")
-@click.option('--frequency', '-f', default=5, type=float, help="Control frequency in Hz.")
+@click.option('--steps_per_inference', '-si', default=10, type=int, help="Action horizon for inference.")
+@click.option('--frequency', '-f', default=10, type=float, help="Control frequency in Hz.")
 @click.option('--command_latency', '-cl', default=0.01, type=float, help="Latency between receiving SapceMouse command to executing on Robot in Sec.")
 @click.option('-nm', '--no_mirror', is_flag=True, default=False)
 @click.option('--init_joints', '-j', is_flag=True, default=False, help="Whether to initialize robot joint configuration in the beginning.")
@@ -268,6 +264,15 @@ def main(input, output, policy_ip, policy_port,
                                 # Prev episode
                                 if match_episode is not None:
                                     match_episode = max(match_episode - 1, 0)
+
+                            elif key_stroke == KeyCode(char='z'):
+                                steps_per_inference = 30
+                                print(f"switched steps_per_inference to {steps_per_inference}")
+                            
+                            elif key_stroke == KeyCode(char='x'):
+                                steps_per_inference = 10
+                                print(f"switched steps_per_inference to {steps_per_inference}")
+                                
                             elif key_stroke == Key.backspace:
                                 if click.confirm('Are you sure to drop an episode?'):
                                     env.drop_episode()
@@ -402,25 +407,30 @@ def main(input, output, policy_ip, policy_port,
                             )
                             press_events = key_counter.get_press_events()
                             stop_episode = False
+
+                            iter_idx += steps_per_inference
+
                             for key_stroke in press_events:
                                 if key_stroke == KeyCode(char='s'):
                                     # Stop episode
                                     # Hand control back to human
                                     print('Stopped.')
                                     stop_episode = True
-                            print("Done getting ")
+                                elif key_stroke == KeyCode(char='z'):
+                                    steps_per_inference = 30
+                                    print(f"switched steps_per_inference to {steps_per_inference}")
+                                
+                                elif key_stroke == KeyCode(char='x'):
+                                    steps_per_inference = 10
+                                    print(f"switched steps_per_inference to {steps_per_inference}")
+                                
 
-                            t_since_start = time.time() - eval_t_start
-                            # if t_since_start > max_duration:
-                            #     print("Max Duration reached.")
-                            #     stop_episode = True
                             if stop_episode:
                                 env.end_episode()
                                 break
 
                             # wait for execution
                             precise_wait(t_cycle_end - frame_latency)
-                            iter_idx += steps_per_inference
 
                     except KeyboardInterrupt:
                         print("Interrupted!")
