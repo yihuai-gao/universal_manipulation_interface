@@ -286,6 +286,8 @@ def main(input, output, policy_ip, policy_port,
                         # print(sm_state)
                         dpos = sm_state[:3] * (0.5 / frequency) * cartesian_speed
                         drot_xyz = sm_state[3:] * (1.5 / frequency) * orientation_speed
+                        dpos = dpos[[1, 2, 0]] # Hack: reorient the directions to match mocap and iphone
+                        drot_xyz = drot_xyz[[1, 2, 0]]
 
                         drot = st.Rotation.from_euler('xyz', drot_xyz)
                         for robot_idx in control_robot_idx_list:

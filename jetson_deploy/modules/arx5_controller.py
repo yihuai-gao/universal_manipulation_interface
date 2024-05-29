@@ -216,6 +216,7 @@ class Arx5Controller(mp.Process):
     def run(self):
         self.robot_client = Arx5Client(self.robot_ip, self.robot_port)
         self.robot_client.reset_to_home()
+        # self.robot_client.set_gain()
         time.sleep(1)
         # self.robot_client.set_to_damping()
         # gain = self.robot_client.get_gain()
@@ -387,7 +388,8 @@ class Arx5Controller(mp.Process):
                             error = np.sum(np.abs(input_pose_samples - pose_samples) * error_weights)
                             errors.append(error)
                         errors = np.array(errors)
-                        best_latency = np.arange(matching_dt, max_latency, latency_precision)[np.argmin(errors)]
+                        # best_latency = np.arange(matching_dt, max_latency, latency_precision)[np.argmin(errors)]
+                        best_latency = 0.0
 
                         smoothened_input_poses = input_poses
                         new_times = input_times - input_times[0] + t_now - best_latency

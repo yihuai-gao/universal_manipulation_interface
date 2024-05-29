@@ -1,8 +1,6 @@
 import numpy as np
 from diffusion_policy.common.pose_repr_util import convert_pose_mat_rep
 from umi.common.pose_util import mat_to_pose, pose10d_to_mat, pose_to_mat
-import zmq
-from umi.real_world.real_inference_util import get_real_umi_action
 output_dir = "data_local/arx_20240320/vit_l_mirror_swap"
 episode_id = 0
 
