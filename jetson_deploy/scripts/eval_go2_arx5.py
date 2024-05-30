@@ -59,7 +59,7 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 @click.option('--output', '-o', required=True, help='Directory to save recording')
 @click.option('--policy_ip', default='localhost')
 @click.option('--policy_port', default=8766)
-@click.option('--steps_per_inference', '-si', default=10, type=int, help="Action horizon for inference.")
+@click.option('--steps_per_inference', '-si', default=30, type=int, help="Action horizon for inference.")
 @click.option('--frequency', '-f', default=10, type=float, help="Control frequency in Hz.")
 @click.option('--command_latency', '-cl', default=0.01, type=float, help="Latency between receiving SapceMouse command to executing on Robot in Sec.")
 @click.option('-nm', '--no_mirror', is_flag=True, default=False)
@@ -194,6 +194,8 @@ def main(input, output, policy_ip, policy_port,
             assert action.shape[-1] == 7 * len(robots_config)
             print('Ready!')
 
+            update_teleop_pose = True
+
             try:
                 while True:
                     # ========= human control loop ==========
@@ -272,6 +274,16 @@ def main(input, output, policy_ip, policy_port,
                             elif key_stroke == KeyCode(char='x'):
                                 steps_per_inference = 10
                                 print(f"switched steps_per_inference to {steps_per_inference}")
+
+                            elif key_stroke == KeyCode(char="t"):
+                                update_teleop_pose = not update_teleop_pose
+                                if update_teleop_pose:
+                                    print("Start to publish teleoperation pose. Target pose is reset to current pose.")
+                                    robot_states = env.get_robot_state()
+                                    target_pose = np.stack([rs['ActualTCPPose'] for rs in robot_states])
+                                    gripper_target_pos = np.asarray([rs['gripper_position'] for rs in robot_states])
+                                else:
+                                    print("Stop publishing teleoperation pose.")
                                 
                             elif key_stroke == Key.backspace:
                                 if click.confirm('Are you sure to drop an episode?'):
@@ -290,33 +302,35 @@ def main(input, output, policy_ip, policy_port,
                         drot_xyz = drot_xyz[[1, 2, 0]]
 
                         drot = st.Rotation.from_euler('xyz', drot_xyz)
-                        for robot_idx in control_robot_idx_list:
-                            target_pose[robot_idx, :3] += dpos
-                            target_pose[robot_idx, 3:] = (drot * st.Rotation.from_rotvec(
-                                target_pose[robot_idx, 3:])).as_rotvec()
-                            # target_pose[robot_idx, 2] = np.maximum(target_pose[robot_idx, 2], 0.055)
 
-                        dpos = 0
-                        if sm.is_button_pressed(0):
-                            # close gripper
-                            dpos = -gripper_speed / frequency
-                        elif sm.is_button_pressed(1):
-                            dpos = gripper_speed / frequency
-                        for robot_idx in control_robot_idx_list:
-                            gripper_target_pos[robot_idx] = np.clip(gripper_target_pos[robot_idx] + dpos, 0, max_gripper_width)
+                        if update_teleop_pose:
+                            for robot_idx in control_robot_idx_list:
+                                target_pose[robot_idx, :3] += dpos
+                                target_pose[robot_idx, 3:] = (drot * st.Rotation.from_rotvec(
+                                    target_pose[robot_idx, 3:])).as_rotvec()
+                                # target_pose[robot_idx, 2] = np.maximum(target_pose[robot_idx, 2], 0.055)
+
+                            dpos = 0
+                            if sm.is_button_pressed(0):
+                                # close gripper
+                                dpos = -gripper_speed / frequency
+                            elif sm.is_button_pressed(1):
+                                dpos = gripper_speed / frequency
+                            for robot_idx in control_robot_idx_list:
+                                gripper_target_pos[robot_idx] = np.clip(gripper_target_pos[robot_idx] + dpos, 0, max_gripper_width)
 
                         
-                        action = np.zeros((7 * target_pose.shape[0],))
+                            action = np.zeros((7 * target_pose.shape[0],))
 
-                        for robot_idx in range(target_pose.shape[0]):
-                            action[7 * robot_idx + 0: 7 * robot_idx + 6] = target_pose[robot_idx]
-                            action[7 * robot_idx + 6] = gripper_target_pos[robot_idx]
+                            for robot_idx in range(target_pose.shape[0]):
+                                action[7 * robot_idx + 0: 7 * robot_idx + 6] = target_pose[robot_idx]
+                                action[7 * robot_idx + 6] = gripper_target_pos[robot_idx]
+
+                            env.exec_actions(
+                                actions=[action], 
+                                timestamps=[t_command_target-time.monotonic()+time.time()])
 
 
-                        # execute teleop command
-                        env.exec_actions(
-                            actions=[action], 
-                            timestamps=[t_command_target-time.monotonic()+time.time()])
                         precise_wait(t_cycle_end)
                         iter_idx += 1
                         
