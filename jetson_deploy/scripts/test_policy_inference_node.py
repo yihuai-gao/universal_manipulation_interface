@@ -10,7 +10,7 @@ def main(output):
     socket = context.socket(zmq.REQ)
     socket.connect(f"tcp://realdesktop005:8766")
     while True:
-        obs_dict_np = np.load(f'{output}/obs/obs_dict_np_{iter_idx}.npy', allow_pickle=True).item()
+        obs_dict_np = np.load(f'{output}/obs/obs_dict_{iter_idx}.npy', allow_pickle=True).item()
         send_start_time = time.monotonic()
         socket.send_pyobj(obs_dict_np)
         recv_start_time = time.monotonic()

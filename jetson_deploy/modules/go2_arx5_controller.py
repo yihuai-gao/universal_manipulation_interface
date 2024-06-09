@@ -110,7 +110,7 @@ class Go2Arx5Publisher(Node):
                 vec = np.zeros(3)
             eef_frame.eef_pose[:3] = pose[:3]
             eef_frame.eef_pose[3:] = quaternions.axangle2quat(vec, theta)
-            eef_frame.gripper_pos = max(0.0, float(gripper_traj[i]) - 0.02) # Hack: close the gripper tighter
+            eef_frame.gripper_pos = max(0.0, float(gripper_traj[i]))
             eef_frame.tick = int(robot_ticks_s[i] * 1000)
             eef_frames.append(eef_frame)
             

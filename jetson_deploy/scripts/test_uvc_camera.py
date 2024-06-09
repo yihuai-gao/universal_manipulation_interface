@@ -5,7 +5,8 @@ import os
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(ROOT_DIR)
-os.chdir(ROOT_DIR)
+if ROOT_DIR:
+    os.chdir(ROOT_DIR)
 import numpy as np
 from jetson_deploy.modules.video_recorder_jetson import VideoRecorderJetson
 import cv2
@@ -44,7 +45,7 @@ def test_single():
             codec='h264_nvenc',
             input_pix_fmt='bgr24',
             bit_rate=6000*1000,
-            enable_recorder=True
+            enable_recorder=False
         )
 
         with UvcCamera(
@@ -162,7 +163,7 @@ def test_multiple():
             codec='h264_nvenc',
             input_pix_fmt='bgr24',
             bit_rate=bit_rate,
-            enable_recorder=True,
+            enable_recorder=False,
         ))
         def vis_tf(data, input_res=res):
             img = data['color']

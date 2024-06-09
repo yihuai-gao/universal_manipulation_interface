@@ -114,20 +114,22 @@ class VideoRecorderJetson(mp.Process):
             and (not self.stop_event.is_set())
         
     def start_recording(self, video_path: str, start_time: float=-1):
-        path_len = len(video_path.encode('utf-8'))
-        if path_len > self.MAX_PATH_LENGTH:
-            raise RuntimeError('video_path too long.')
-        self.start_time = start_time
-        self.cmd_queue.put({
-            'cmd': self.Command.START_RECORDING.value,
-            'video_path': video_path
-        })
+        if self.enable_recorder:
+            path_len = len(video_path.encode('utf-8'))
+            if path_len > self.MAX_PATH_LENGTH:
+                raise RuntimeError('video_path too long.')
+            self.start_time = start_time
+            self.cmd_queue.put({
+                'cmd': self.Command.START_RECORDING.value,
+                'video_path': video_path
+            })
     
     def stop_recording(self):
-        self.cmd_queue.put({
-            'cmd': self.Command.STOP_RECORDING.value
-        })
-        self._reset_state()
+        if self.enable_recorder:
+            self.cmd_queue.put({
+                'cmd': self.Command.STOP_RECORDING.value
+            })
+            self._reset_state()
     
     def write_frame(self, img: np.ndarray, frame_time=None):
         if not self.is_ready():

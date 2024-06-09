@@ -59,8 +59,8 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 @click.option('--output', '-o', required=True, help='Directory to save recording')
 @click.option('--policy_ip', default='localhost')
 @click.option('--policy_port', default=8766)
-@click.option('--steps_per_inference', '-si', default=30, type=int, help="Action horizon for inference.")
-@click.option('--frequency', '-f', default=10, type=float, help="Control frequency in Hz.")
+@click.option('--steps_per_inference', '-si', default=8, type=int, help="Action horizon for inference.")
+@click.option('--frequency', '-f', default=5, type=float, help="Control frequency in Hz.")
 @click.option('--command_latency', '-cl', default=0.01, type=float, help="Latency between receiving SapceMouse command to executing on Robot in Sec.")
 @click.option('-nm', '--no_mirror', is_flag=True, default=False)
 @click.option('--init_joints', '-j', is_flag=True, default=False, help="Whether to initialize robot joint configuration in the beginning.")
@@ -229,27 +229,27 @@ def main(input, output, policy_ip, policy_port,
                         vis_img = np.concatenate([obs_left_img, obs_right_img, vis_img], axis=1)
                         
                         text = f'Episode: {episode_id}'
-                        cv2.putText(
-                            vis_img,
-                            text,
-                            (10,20),
-                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                            fontScale=0.5,
-                            lineType=cv2.LINE_AA,
-                            thickness=3,
-                            color=(0,0,0)
-                        )
-                        cv2.putText(
-                            vis_img,
-                            text,
-                            (10,20),
-                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                            fontScale=0.5,
-                            thickness=1,
-                            color=(255,255,255)
-                        )
-                        cv2.imshow('default', vis_img[...,::-1])
-                        _ = cv2.pollKey()
+                        # cv2.putText(
+                        #     vis_img,
+                        #     text,
+                        #     (10,20),
+                        #     fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                        #     fontScale=0.5,
+                        #     lineType=cv2.LINE_AA,
+                        #     thickness=3,
+                        #     color=(0,0,0)
+                        # )
+                        # cv2.putText(
+                        #     vis_img,
+                        #     text,
+                        #     (10,20),
+                        #     fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                        #     fontScale=0.5,
+                        #     thickness=1,
+                        #     color=(255,255,255)
+                        # )
+                        # cv2.imshow('default', vis_img[...,::-1])
+                        # _ = cv2.pollKey()
                         press_events = key_counter.get_press_events()
                         start_policy = False
         

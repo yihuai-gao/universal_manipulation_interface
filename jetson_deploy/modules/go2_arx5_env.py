@@ -159,7 +159,8 @@ class Go2Arx5Env:
             video_recorder.append(VideoRecorderJetson.create_hevc_nvenc(
                 fps=fps,
                 input_pix_fmt='bgr24',
-                bit_rate=bit_rate
+                bit_rate=bit_rate,
+                enable_recorder=False
             ))
 
             def vis_tf(data, input_res=res):
