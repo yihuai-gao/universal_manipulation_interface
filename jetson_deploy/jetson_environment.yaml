@@ -1,5 +1,6 @@
 name: umi-jetson
 channels:
+  - robostack-staging
   - conda-forge
 dependencies:
   - _openmp_mutex=4.5=2_gnu
@@ -8,28 +9,45 @@ dependencies:
   - antlr-python-runtime=4.9.3=pyhd8ed1ab_1
   - aom=3.8.1=h0425590_0
   - appdirs=1.4.4=pyh9f0ad1d_0
+  - argcomplete=3.3.0=pyhd8ed1ab_0
   - asciitree=0.3.3=py_2
+  - atk-1.0=2.38.0=hf4e84e4_1
   - attr=2.5.1=h4e544f5_1
   - av=11.0.0=py310h871d1a1_0
   - brotli-python=1.1.0=py310hbb3657e_1
+  - bullet=3.25=h70ff3ff_2
+  - bullet-cpp=3.25=py310h10ffd4f_2
   - bzip2=1.0.8=h31becfc_5
   - c-ares=1.27.0=h31becfc_0
   - ca-certificates=2024.2.2=hcefe29a_0
   - cairo=1.18.0=ha13f110_0
+  - catkin_pkg=1.0.0=pyhd8ed1ab_0
   - certifi=2024.2.2=pyhd8ed1ab_0
+  - cffi=1.16.0=py310hce94938_0
   - charset-normalizer=3.3.2=pyhd8ed1ab_0
   - click=8.1.7=unix_pyh707e725_0
+  - cmake=3.28.3=hef020d8_0
   - colorama=0.4.6=pyhd8ed1ab_0
+  - console_bridge=1.0.2=hdd96247_1
+  - cppcheck=2.13.2=py310h2e2e73c_0
+  - cryptography=42.0.7=py310hf601767_0
   - dav1d=1.2.1=h31becfc_0
   - dbus=1.13.6=h12b9eeb_3
   - diffusers=0.26.3=pyhd8ed1ab_0
   - dill=0.3.8=pyhd8ed1ab_0
+  - distro=1.9.0=pyhd8ed1ab_0
   - docker-pycreds=0.4.0=py_0
+  - docutils=0.21.2=pyhd8ed1ab_0
+  - eigen=3.4.0=h2a328a1_0
   - einops=0.7.0=pyhd8ed1ab_1
+  - empy=3.3.4=pyh9f0ad1d_1
+  - exceptiongroup=1.2.0=pyhd8ed1ab_2
   - expat=2.5.0=hd600fc2_1
   - fasteners=0.17.3=pyhd8ed1ab_0
   - ffmpeg=6.1.1=gpl_hd8c5532_104
   - filelock=3.13.1=pyhd8ed1ab_0
+  - flake8=7.0.0=pyhd8ed1ab_0
+  - fmt=9.1.0=hdd96247_0
   - font-ttf-dejavu-sans-mono=2.37=hab24e00_0
   - font-ttf-inconsolata=3.000=h77eed37_0
   - font-ttf-source-code-pro=2.038=h77eed37_0
@@ -37,21 +55,29 @@ dependencies:
   - fontconfig=2.14.2=ha9a116f_0
   - fonts-conda-ecosystem=1=0
   - fonts-conda-forge=1=0
+  - foonathan-memory=0.7.2=h4de3ea5_1
   - freeglut=3.2.2=hf4b6fbe_2
   - freetype=2.12.1=hf0a5ef3_2
   - fribidi=1.0.10=hb9de7d4_0
   - fsspec=2024.2.0=pyhca7485f_0
+  - gdk-pixbuf=2.42.10=h1db8359_5
   - gettext=0.21.1=ha18d298_0
+  - giflib=5.2.2=h31becfc_0
   - gitdb=4.0.11=pyhd8ed1ab_0
   - gitpython=3.1.42=pyhd8ed1ab_0
   - glib=2.78.4=hd84c7bf_0
   - glib-tools=2.78.4=hd84c7bf_0
+  - gmock=1.14.0=h8af1aa0_1
   - gmp=6.3.0=h2f0025b_0
   - gmpy2=2.1.2=py310h9f74ea4_1
   - gnutls=3.7.9=hb309da9_0
   - graphite2=1.3.13=h7fd3ca4_1001
+  - graphviz=9.0.0=h65e8cce_1
   - gst-plugins-base=1.22.9=h6d82d15_0
   - gstreamer=1.22.9=hed71854_0
+  - gtest=1.14.0=h2a328a1_1
+  - gtk2=2.24.33=h0d7db29_4
+  - gts=0.7.6=he293c15_4
   - harfbuzz=8.3.0=hebeb849_0
   - hdf5=1.14.3=nompi_ha486f32_100
   - huggingface_hub=0.20.2=pyhd8ed1ab_0
@@ -60,15 +86,18 @@ dependencies:
   - idna=3.6=pyhd8ed1ab_0
   - importlib-metadata=7.0.1=pyha770c72_0
   - importlib_resources=6.1.1=pyhd8ed1ab_0
+  - iniconfig=2.0.0=pyhd8ed1ab_0
   - jasper=4.2.1=h381c573_0
   - jinja2=3.1.3=pyhd8ed1ab_0
   - keyutils=1.6.1=h4e544f5_0
   - krb5=1.21.2=hc419048_0
   - lame=3.100=h4e544f5_1003
+  - lark-parser=0.12.0=pyhd8ed1ab_0
   - lcms2=2.16=h922389a_0
   - ld_impl_linux-aarch64=2.40=h2d8c526_0
   - lerc=4.0.0=h4de3ea5_0
   - libabseil=20230802.1=cxx17_h2f0025b_0
+  - libacl=2.3.2=h883460d_0
   - libaec=1.1.2=h2f0025b_1
   - libass=0.17.1=h36b5d3b_1
   - libblas=3.9.0=21_linuxaarch64_openblas
@@ -87,6 +116,7 @@ dependencies:
   - libflac=1.4.3=h2f0025b_0
   - libgcc-ng=13.2.0=hf8544c7_5
   - libgcrypt=1.10.3=h31becfc_0
+  - libgd=2.3.3=hcd22fd5_9
   - libgfortran-ng=13.2.0=he9431aa_5
   - libgfortran5=13.2.0=h582850c_5
   - libglib=2.78.4=h311d5f7_0
@@ -120,6 +150,7 @@ dependencies:
   - libpng=1.6.43=h194ca79_0
   - libpq=16.2=h58720eb_0
   - libprotobuf=4.25.1=h87e877f_2
+  - librsvg=2.56.3=h4341b47_1
   - libsndfile=1.2.2=h79657aa_1
   - libsodium=1.0.18=hb9de7d4_1
   - libsqlite=3.45.1=h194ca79_0
@@ -134,13 +165,17 @@ dependencies:
   - libuv=1.47.0=h31becfc_0
   - libvorbis=1.3.7=h01db608_0
   - libvpx=1.13.1=h2f0025b_0
+  - libwebp=1.3.2=heb2ea1b_1
   - libwebp-base=1.3.2=h31becfc_0
   - libxcb=1.15=h2a766a3_0
   - libxkbcommon=1.6.0=h217f472_1
   - libxml2=2.12.5=h3091e33_0
+  - libxslt=1.1.39=h1cc9640_0
   - libzlib=1.2.13=h31becfc_5
+  - lxml=5.1.0=py310ha3d0d4e_0
   - lz4-c=1.9.4=hd600fc2_0
   - markupsafe=2.1.5=py310h7c1f4a2_0
+  - mccabe=0.7.0=pyhd8ed1ab_0
   - mpc=1.3.1=hf4c8f4c_0
   - mpfr=4.2.1=ha2d0fc4_0
   - mpg123=1.32.4=h2f0025b_0
@@ -149,6 +184,7 @@ dependencies:
   - mysql-common=8.0.33=hb6794ad_6
   - mysql-libs=8.0.33=hf629957_6
   - ncurses=6.4=h0425590_2
+  - netifaces=0.11.0=py310hb299538_2
   - nettle=3.9.1=h9d1147b_0
   - networkx=3.2.1=pyhd8ed1ab_0
   - nomkl=1.0=h5ca1d4c_0
@@ -159,23 +195,36 @@ dependencies:
   - omegaconf=2.3.0=pyhd8ed1ab_0
   - openh264=2.4.1=h2f0025b_0
   - openjpeg=2.5.0=h0d9d63b_3
-  - openssl=3.3.0=h31becfc_0
+  - openssl=3.3.0=h68df207_3
+  - orocos-kdl=1.5.1=h2f0025b_5
   - p11-kit=0.24.1=h9f2702f_0
   - packaging=23.2=pyhd8ed1ab_0
   - pandas=2.2.1=py310hf9cab1f_0
+  - pango=1.52.1=h11ef544_0
   - pathtools=0.1.2=py_1
+  - pcre=8.45=h01db608_0
   - pcre2=10.42=hd0f9c67_0
   - pillow=10.2.0=py310h0ae3e2b_0
   - pip=24.0=pyhd8ed1ab_0
   - pixman=0.43.2=h2f0025b_0
+  - pluggy=1.5.0=pyhd8ed1ab_0
   - protobuf=4.25.1=py310haa32809_0
   - psutil=5.9.8=py310hb299538_0
   - pthread-stubs=0.4=hb9de7d4_1001
   - pugixml=1.14=h2f0025b_0
   - pulseaudio-client=16.1=h729494f_5
   - py-opencv=4.9.0=py310h783e9b6_7
+  - pybind11=2.12.0=py310h586407a_0
+  - pybind11-global=2.12.0=py310h586407a_0
+  - pybullet=3.25=py310h10ffd4f_2
+  - pycodestyle=2.11.1=pyhd8ed1ab_0
+  - pydocstyle=6.3.0=pyhd8ed1ab_0
+  - pyflakes=3.2.0=pyhd8ed1ab_0
+  - pygments=2.18.0=pyhd8ed1ab_0
   - pynput=1.7.6=py310h4c7bcd0_1
+  - pyparsing=3.1.2=pyhd8ed1ab_0
   - pysocks=1.7.1=pyha2e5f31_6
+  - pytest=8.2.1=pyhd8ed1ab_0
   - python=3.10.0=h2265c99_3_cpython
   - python-dateutil=2.8.2=pyhd8ed1ab_0
   - python-tzdata=2024.1=pyhd8ed1ab_0
@@ -189,28 +238,234 @@ dependencies:
   - readline=8.2=h8fc344f_1
   - regex=2023.12.25=py310hb299538_0
   - requests=2.31.0=pyhd8ed1ab_0
+  - rhash=1.4.4=h31becfc_0
+  - ros-humble-action-msgs=1.2.1=py310h010ba66_3
+  - ros-humble-actionlib-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-ament-cmake=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-auto=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-copyright=0.12.5=py310h010ba66_3
+  - ros-humble-ament-cmake-core=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-cppcheck=0.12.5=py310h010ba66_3
+  - ros-humble-ament-cmake-cpplint=0.12.5=py310h010ba66_3
+  - ros-humble-ament-cmake-export-definitions=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-export-dependencies=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-export-include-directories=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-export-interfaces=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-export-libraries=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-export-link-flags=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-export-targets=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-flake8=0.12.5=py310h010ba66_3
+  - ros-humble-ament-cmake-gen-version-h=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-gmock=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-gtest=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-include-directories=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-libraries=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-lint-cmake=0.12.5=py310h010ba66_3
+  - ros-humble-ament-cmake-pep257=0.12.5=py310h010ba66_3
+  - ros-humble-ament-cmake-pytest=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-python=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-ros=0.10.0=py310h010ba66_3
+  - ros-humble-ament-cmake-target-dependencies=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-test=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-uncrustify=0.12.5=py310h010ba66_3
+  - ros-humble-ament-cmake-version=1.3.3=py310h010ba66_3
+  - ros-humble-ament-cmake-xmllint=0.12.5=py310h010ba66_3
+  - ros-humble-ament-copyright=0.12.5=py310h010ba66_3
+  - ros-humble-ament-cppcheck=0.12.5=py310h010ba66_3
+  - ros-humble-ament-cpplint=0.12.5=py310h010ba66_3
+  - ros-humble-ament-flake8=0.12.5=py310h010ba66_3
+  - ros-humble-ament-index-cpp=1.4.0=py310h010ba66_3
+  - ros-humble-ament-index-python=1.4.0=py310h010ba66_3
+  - ros-humble-ament-lint=0.12.5=py310h010ba66_3
+  - ros-humble-ament-lint-auto=0.12.5=py310h010ba66_3
+  - ros-humble-ament-lint-cmake=0.12.5=py310h010ba66_3
+  - ros-humble-ament-lint-common=0.12.5=py310h010ba66_3
+  - ros-humble-ament-package=0.14.0=py310h010ba66_3
+  - ros-humble-ament-pep257=0.12.5=py310h010ba66_3
+  - ros-humble-ament-uncrustify=0.12.5=py310h010ba66_3
+  - ros-humble-ament-xmllint=0.12.5=py310h010ba66_3
+  - ros-humble-builtin-interfaces=1.2.1=py310h010ba66_3
+  - ros-humble-class-loader=2.2.0=py310hdea95f0_3
+  - ros-humble-common-interfaces=4.2.3=py310h010ba66_3
+  - ros-humble-composition-interfaces=1.2.1=py310h010ba66_3
+  - ros-humble-console-bridge-vendor=1.4.1=py310hdea95f0_3
+  - ros-humble-cyclonedds=0.9.1=py310h0594c84_3
+  - ros-humble-diagnostic-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-domain-coordinator=0.10.0=py310h010ba66_3
+  - ros-humble-eigen3-cmake-module=0.1.1=py310h010ba66_3
+  - ros-humble-fastcdr=1.0.24=py310h010ba66_3
+  - ros-humble-fastrtps=2.6.4=py310hcd2dc23_3
+  - ros-humble-fastrtps-cmake-module=2.2.0=py310h010ba66_3
+  - ros-humble-foonathan-memory-vendor=1.2.0=py310h010ba66_3
+  - ros-humble-geometry-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-geometry2=0.25.2=py310h010ba66_3
+  - ros-humble-gmock-vendor=1.10.9004=py310h010ba66_3
+  - ros-humble-gtest-vendor=1.10.9004=py310h010ba66_3
+  - ros-humble-iceoryx-binding-c=2.0.2=py310h010ba66_3
+  - ros-humble-iceoryx-hoofs=2.0.2=py310h010ba66_3
+  - ros-humble-iceoryx-posh=2.0.2=py310h010ba66_3
+  - ros-humble-kdl-parser=2.6.4=py310h010ba66_3
+  - ros-humble-keyboard-handler=0.0.5=py310h010ba66_3
+  - ros-humble-launch=1.0.4=py310h010ba66_3
+  - ros-humble-launch-ros=0.19.4=py310h010ba66_3
+  - ros-humble-launch-testing=1.0.4=py310h010ba66_3
+  - ros-humble-launch-testing-ament-cmake=1.0.4=py310h010ba66_3
+  - ros-humble-launch-testing-ros=0.19.4=py310h010ba66_3
+  - ros-humble-launch-xml=1.0.4=py310h010ba66_3
+  - ros-humble-launch-yaml=1.0.4=py310h010ba66_3
+  - ros-humble-libstatistics-collector=1.3.0=py310h010ba66_3
+  - ros-humble-libyaml-vendor=1.2.2=py310h010ba66_3
+  - ros-humble-lifecycle-msgs=1.2.1=py310h010ba66_3
+  - ros-humble-message-filters=4.3.2=py310h010ba66_3
+  - ros-humble-nav-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-orocos-kdl-vendor=0.2.5=py310h010ba66_3
+  - ros-humble-osrf-pycommon=2.0.2=py310h010ba66_3
+  - ros-humble-pluginlib=5.1.0=py310h010ba66_3
+  - ros-humble-pybind11-vendor=2.4.2=py310h010ba66_3
+  - ros-humble-python-cmake-module=0.10.0=py310h010ba66_3
+  - ros-humble-rcl=5.3.2=py310h010ba66_3
+  - ros-humble-rcl-action=5.3.2=py310h010ba66_3
+  - ros-humble-rcl-interfaces=1.2.1=py310h010ba66_3
+  - ros-humble-rcl-lifecycle=5.3.2=py310h010ba66_3
+  - ros-humble-rcl-logging-interface=2.3.1=py310h010ba66_3
+  - ros-humble-rcl-logging-spdlog=2.3.1=py310h76d9d10_3
+  - ros-humble-rcl-yaml-param-parser=5.3.2=py310h010ba66_3
+  - ros-humble-rclcpp=16.0.3=py310h010ba66_3
+  - ros-humble-rclcpp-action=16.0.3=py310h010ba66_3
+  - ros-humble-rclcpp-components=16.0.3=py310h010ba66_3
+  - ros-humble-rclcpp-lifecycle=16.0.3=py310h010ba66_3
+  - ros-humble-rclpy=3.3.7=py310h010ba66_3
+  - ros-humble-rcpputils=2.4.0=py310h010ba66_3
+  - ros-humble-rcutils=5.1.2=py310h010ba66_3
+  - ros-humble-rmw=6.1.1=py310h010ba66_3
+  - ros-humble-rmw-connextdds=0.11.1=py310h010ba66_3
+  - ros-humble-rmw-connextdds-common=0.11.1=py310h010ba66_3
+  - ros-humble-rmw-cyclonedds-cpp=1.3.4=py310h010ba66_3
+  - ros-humble-rmw-dds-common=1.6.0=py310h010ba66_3
+  - ros-humble-rmw-fastrtps-cpp=6.2.2=py310h010ba66_3
+  - ros-humble-rmw-fastrtps-dynamic-cpp=6.2.2=py310h010ba66_3
+  - ros-humble-rmw-fastrtps-shared-cpp=6.2.2=py310h010ba66_3
+  - ros-humble-rmw-implementation=2.8.2=py310h010ba66_3
+  - ros-humble-rmw-implementation-cmake=6.1.1=py310h010ba66_3
+  - ros-humble-robot-state-publisher=3.0.2=py310h010ba66_3
+  - ros-humble-ros-base=0.10.0=py310h010ba66_3
+  - ros-humble-ros-core=0.10.0=py310h010ba66_3
+  - ros-humble-ros-environment=3.2.2=py310h010ba66_3
+  - ros-humble-ros-workspace=1.0.2=py310h010ba66_3
+  - ros-humble-ros2action=0.18.5=py310h010ba66_3
+  - ros-humble-ros2bag=0.15.4=py310h010ba66_3
+  - ros-humble-ros2cli=0.18.5=py310h010ba66_3
+  - ros-humble-ros2cli-common-extensions=0.1.1=py310h010ba66_3
+  - ros-humble-ros2component=0.18.5=py310h010ba66_3
+  - ros-humble-ros2doctor=0.18.5=py310h010ba66_3
+  - ros-humble-ros2interface=0.18.5=py310h010ba66_3
+  - ros-humble-ros2launch=0.19.4=py310h010ba66_3
+  - ros-humble-ros2lifecycle=0.18.5=py310h010ba66_3
+  - ros-humble-ros2multicast=0.18.5=py310h010ba66_3
+  - ros-humble-ros2node=0.18.5=py310h010ba66_3
+  - ros-humble-ros2param=0.18.5=py310h010ba66_3
+  - ros-humble-ros2pkg=0.18.5=py310h010ba66_3
+  - ros-humble-ros2run=0.18.5=py310h010ba66_3
+  - ros-humble-ros2service=0.18.5=py310h010ba66_3
+  - ros-humble-ros2topic=0.18.5=py310h010ba66_3
+  - ros-humble-rosbag2=0.15.4=py310h010ba66_3
+  - ros-humble-rosbag2-compression=0.15.4=py310h010ba66_3
+  - ros-humble-rosbag2-compression-zstd=0.15.4=py310h010ba66_3
+  - ros-humble-rosbag2-cpp=0.15.4=py310h010ba66_3
+  - ros-humble-rosbag2-interfaces=0.15.4=py310h010ba66_3
+  - ros-humble-rosbag2-py=0.15.4=py310h010ba66_3
+  - ros-humble-rosbag2-storage=0.15.4=py310h010ba66_3
+  - ros-humble-rosbag2-storage-default-plugins=0.15.4=py310h010ba66_3
+  - ros-humble-rosbag2-transport=0.15.4=py310h010ba66_3
+  - ros-humble-rosgraph-msgs=1.2.1=py310h010ba66_3
+  - ros-humble-rosidl-adapter=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-cli=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-cmake=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-default-generators=1.2.0=py310h010ba66_3
+  - ros-humble-rosidl-default-runtime=1.2.0=py310h010ba66_3
+  - ros-humble-rosidl-generator-c=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-generator-cpp=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-generator-py=0.14.4=py310h010ba66_3
+  - ros-humble-rosidl-parser=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-runtime-c=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-runtime-cpp=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-runtime-py=0.9.3=py310h010ba66_3
+  - ros-humble-rosidl-typesupport-c=2.0.0=py310h010ba66_3
+  - ros-humble-rosidl-typesupport-cpp=2.0.0=py310h010ba66_3
+  - ros-humble-rosidl-typesupport-fastrtps-c=2.2.0=py310h010ba66_3
+  - ros-humble-rosidl-typesupport-fastrtps-cpp=2.2.0=py310h010ba66_3
+  - ros-humble-rosidl-typesupport-interface=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-typesupport-introspection-c=3.1.4=py310h010ba66_3
+  - ros-humble-rosidl-typesupport-introspection-cpp=3.1.4=py310h010ba66_3
+  - ros-humble-rpyutils=0.2.1=py310h010ba66_3
+  - ros-humble-rti-connext-dds-cmake-module=0.11.1=py310h010ba66_3
+  - ros-humble-sensor-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-shape-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-shared-queues-vendor=0.15.4=py310h010ba66_3
+  - ros-humble-spdlog-vendor=1.3.1=py310h76d9d10_3
+  - ros-humble-sqlite3-vendor=0.15.4=py310hf7edd95_3
+  - ros-humble-sros2=0.10.4=py310h010ba66_3
+  - ros-humble-sros2-cmake=0.10.4=py310h010ba66_3
+  - ros-humble-statistics-msgs=1.2.1=py310h010ba66_3
+  - ros-humble-std-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-std-srvs=4.2.3=py310h010ba66_3
+  - ros-humble-stereo-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-tf2=0.25.2=py310hdea95f0_3
+  - ros-humble-tf2-bullet=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-eigen=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-eigen-kdl=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-geometry-msgs=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-kdl=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-msgs=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-py=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-ros=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-ros-py=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-sensor-msgs=0.25.2=py310h010ba66_3
+  - ros-humble-tf2-tools=0.25.2=py310h010ba66_3
+  - ros-humble-tinyxml-vendor=0.8.3=py310h010ba66_3
+  - ros-humble-tinyxml2-vendor=0.7.5=py310h96ca280_3
+  - ros-humble-tracetools=4.1.1=py310h010ba66_3
+  - ros-humble-trajectory-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-uncrustify-vendor=2.0.2=py310h010ba66_3
+  - ros-humble-unique-identifier-msgs=2.2.1=py310h010ba66_3
+  - ros-humble-urdf=2.6.0=py310h010ba66_3
+  - ros-humble-urdf-parser-plugin=2.6.0=py310h010ba66_3
+  - ros-humble-urdfdom=3.0.2=py310hdea95f0_3
+  - ros-humble-urdfdom-headers=1.0.6=py310h010ba66_3
+  - ros-humble-visualization-msgs=4.2.3=py310h010ba66_3
+  - ros-humble-yaml-cpp-vendor=8.0.2=py310h010ba66_3
+  - ros-humble-zstd-vendor=0.15.4=py310h1a34b65_3
+  - ros2-distro-mutex=0.3.0=humble
+  - rosdistro=0.9.0=py310h4c7bcd0_1
+  - rospkg=1.5.1=pyhd8ed1ab_0
   - safetensors=0.4.2=py310hfd680ee_0
   - scipy=1.12.0=py310hcbab775_2
   - sentry-sdk=1.40.5=pyhd8ed1ab_0
   - setproctitle=1.3.3=py310hb299538_0
-  - setuptools=69.1.1=pyhd8ed1ab_0
+  - setuptools=61.0.0=py310hbbe02a8_0
   - six=1.16.0=pyh6c4a22f_0
   - sleef=3.5.1=h4f30969_2
   - smmap=5.0.0=pyhd8ed1ab_0
   - snappy=1.1.10=he8610fa_0
+  - snowballstemmer=2.2.0=pyhd8ed1ab_0
+  - spdlog=1.11.0=hf0e50c9_1
   - sqlite=3.45.1=h3b3482f_0
   - svt-av1=1.8.0=h2f0025b_0
   - sympy=1.12=pypyh9d50eac_103
   - tbb=2021.11.0=h2a328a1_1
   - threadpoolctl=3.3.0=pyhc1e730c_0
   - timm=0.9.16=pyhd8ed1ab_0
+  - tinyxml=2.6.2=hd62202e_2
+  - tinyxml2=9.0.0=h01db608_2
   - tk=8.6.13=h194ca79_0
+  - tomli=2.0.1=pyhd8ed1ab_0
   - torchvision=0.16.1=cpu_py310h784d778_3
   - tqdm=4.66.2=pyhd8ed1ab_0
   - transforms3d=0.4.1=pyhd8ed1ab_0
   - typing-extensions=4.10.0=hd8ed1ab_0
   - typing_extensions=4.10.0=pyha770c72_0
   - tzdata=2024a=h0c530f3_0
+  - uncrustify=0.74.0=h4de3ea5_0
   - urllib3=2.2.1=pyhd8ed1ab_0
   - wandb=0.16.3=pyhd8ed1ab_0
   - wheel=0.42.0=pyhd8ed1ab_0
@@ -240,6 +495,7 @@ dependencies:
   - xorg-xproto=7.0.31=h3557bc0_1007
   - xz=5.2.6=h9cdd2b7_0
   - yaml=0.2.5=hf897c2e_2
+  - yaml-cpp=0.7.0=h2f0025b_3
   - zarr=2.17.0=pyhd8ed1ab_0
   - zeromq=4.3.5=h2f0025b_0
   - zipp=3.17.0=pyhd8ed1ab_0
@@ -247,16 +503,9 @@ dependencies:
   - zstd=1.5.5=h4c53e97_0
   - pip:
       - atomics==1.0.2
-      - cffi==1.16.0
-      - filelock==3.13.1
-      - fsspec==2024.2.0
       - future==1.0.0
       - gevent==24.2.1
       - greenlet==3.0.3
-      - jinja2==3.1.3
-      - markupsafe==2.1.5
-      - mpmath==1.3.0
-      - networkx==3.2.1
       - pycparser==2.21
       - spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz
       - sympy==1.12

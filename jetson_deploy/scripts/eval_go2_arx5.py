@@ -250,9 +250,15 @@ def main(input, output, policy_ip, policy_port,
                         # )
                         # cv2.imshow('default', vis_img[...,::-1])
                         # _ = cv2.pollKey()
-                        press_events = key_counter.get_press_events()
+
                         start_policy = False
-        
+                        joystick_keys = env.robots[0].get_joystick_events()
+                        # print(joystick_keys)
+                        for joystick_key in joystick_keys:
+                            if joystick_key == "X":
+                                start_policy = True
+
+                        press_events = key_counter.get_press_events()
                         for key_stroke in press_events:
                             if key_stroke == KeyCode(char='q'):
                                 # Exit program
@@ -421,8 +427,14 @@ def main(input, output, policy_ip, policy_port,
                             text = 'Episode: {}, Time: {:.1f}'.format(
                                 episode_id, time.monotonic() - t_start
                             )
-                            press_events = key_counter.get_press_events()
                             stop_episode = False
+                            joystick_keys = env.robots[0].get_joystick_events()
+                            # print(joystick_keys)
+                            for key in joystick_keys:
+                                if key == "Y":
+                                    print('Stopped.')
+                                    stop_episode = True
+                            press_events = key_counter.get_press_events()
 
                             iter_idx += steps_per_inference
 

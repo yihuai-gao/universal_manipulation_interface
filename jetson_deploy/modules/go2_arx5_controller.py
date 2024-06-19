@@ -13,36 +13,60 @@ import multiprocessing as mp
 from multiprocessing.managers import SharedMemoryManager
 import numpy as np
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
+from umi.shared_memory.shared_memory_queue import SharedMemoryQueue
 from robot_state.msg import EEFState, EEFTraj
+from unitree_go.msg import WirelessController
 import time
 from transforms3d import quaternions
 import copy
 import logging
 import traceback
-class Command(enum.Enum):
-    STOP = 0
-    SERVOL = 1
-    SCHEDULE_WAYPOINT = 2
-    RESET_TO_HOME = 3
-    ADD_WAYPOINT = 4
-    UPDATE_TRAJECTORY = 5
+
+
+KEY_ORDER = {
+    0:"R1",
+    1:"L1",
+    2:"start",
+    3:"select",
+    4:"R2",
+    5:"L2",
+    8:"A",
+    9:"B",
+    10:"X",
+    11:"Y",
+    12:"up",
+    13:"right",
+    14:"down",
+    15:"left",
+
+}
+
 
 
 class Go2Arx5Listener(Node):
-    def __init__(self, shared_start_time: mp.Value):
+    def __init__(self, shared_start_time: mp.Value, joystick_tolerance = 0.01):
         super().__init__('go2_arx5_state_listener')
         # qos_profile = QoSProfile(depth=1, history=rclpy.qos.HistoryPolicy.KEEP_LAST)
         
         self.eef_state_sub = self.create_subscription(
-            EEFState, "go2_arx5/eef_state", self.listener_callback, 1
+            EEFState, "go2_arx5/eef_state", self.eef_state_callback, 1
         )
 
         self.shared_start_time = shared_start_time
         self.received_msg = None
         self.msg_dict = None
         self.shared_start_time_update_cnt = 0
+
+        # For joystick message recieving
+        self.joystick_sub = self.create_subscription(
+            WirelessController, "/wirelesscontroller", self.joystick_callback, 1
+        )
+        self.received_joystick_msg = None
+        self.joystick_msg_dict = None
+        self.joystick_tolerance = joystick_tolerance
+        self.received_new_joystick_msg = False
     
-    def listener_callback(self, msg:EEFState):
+    def eef_state_callback(self, msg:EEFState):
         self.received_msg = msg
 
         # Update start time
@@ -73,7 +97,30 @@ class Go2Arx5Listener(Node):
     def get_dict(self):
         return copy.deepcopy(self.msg_dict)
 
+
+    def joystick_callback(self, msg:WirelessController):
         
+        if self.received_joystick_msg:
+            if msg.keys == self.received_joystick_msg.keys and \
+                np.abs(msg.lx - self.received_joystick_msg.lx) <= self.joystick_tolerance and \
+                np.abs(msg.ly - self.received_joystick_msg.ly) <= self.joystick_tolerance and \
+                np.abs(msg.rx - self.received_joystick_msg.rx) <= self.joystick_tolerance and \
+                np.abs(msg.ry - self.received_joystick_msg.ry) <= self.joystick_tolerance:
+                return
+        if msg.keys != 0:
+            print(f"[Go2Arx5Controller]: received new key {msg.keys}")
+        self.joystick_msg_dict = {
+            "lx": msg.lx,
+            "ly": msg.ly,
+            "rx": msg.rx,
+            "ry": msg.ry,
+            "keys": msg.keys,
+        }
+        self.received_joystick_msg = msg
+        self.received_new_joystick_msg = True
+
+    def get_joystick_dict(self):
+        return copy.deepcopy(self.joystick_msg_dict)
 
 
 class Go2Arx5Publisher(Node):
@@ -165,6 +212,23 @@ class Go2Arx5Controller(mp.Process):
         # create a shared float start_time to convert from robot tick to time.time()
         self.robot_start_time = mp.Value('d', 0.0) # time.time() when the robot tick is 0
 
+
+        # Joystick listening
+        joystick_example = dict()
+        joystick_example["lx"] = 0.0
+        joystick_example['ly'] = 0.0
+        joystick_example['rx'] = 0.0
+        joystick_example['ry'] = 0.0
+        joystick_example['keys'] = int(0)
+
+        joystick_queue = SharedMemoryQueue.create_from_examples(
+            shm_manager=shm_manager,
+            examples=joystick_example,
+            buffer_size=256,
+        )
+        self.joystick_queue = joystick_queue
+
+
     
     # ========= launch method ===========
     def start(self, wait=True):
@@ -216,6 +280,23 @@ class Go2Arx5Controller(mp.Process):
 
     def get_all_state(self):
         return self.ring_buffer.get_all()
+
+
+    def get_joystick_events(self):
+        if self.joystick_queue.qsize() == 0:
+            return []
+        all_msgs = self.joystick_queue.get_all()
+        pressed_keys = []
+        prev_key_msg = 0
+        key_msgs = all_msgs["keys"]
+        for key_msg in key_msgs:
+            if key_msg != prev_key_msg:
+                # new key pressed
+                for order in KEY_ORDER.keys():
+                    if (key_msg >> order) & 1 and not (prev_key_msg >> order) & 1:
+                        pressed_keys.append(KEY_ORDER[order])
+            prev_key_msg = key_msg
+        return pressed_keys
     
     # ========= command methods ============
     def send_trajectory(self, pose_traj, gripper_traj, timestamps):
@@ -249,6 +330,13 @@ class Go2Arx5Controller(mp.Process):
                     if iter_idx == 0:
                         self.ready_event.set()
                     iter_idx += 1
+
+                if self.sub_node.received_new_joystick_msg:
+                    # update queue
+                    joystick_msg_dict = self.sub_node.get_joystick_dict()
+                    if joystick_msg_dict is not None:
+                        self.joystick_queue.put(joystick_msg_dict)
+                    self.sub_node.received_new_joystick_msg = False
         except:
             print(echo_exception())
 
@@ -266,16 +354,19 @@ if __name__ == "__main__":
     with SharedMemoryManager() as shm_manager:
         with Go2Arx5Controller(shm_manager=shm_manager) as go2_arx5_controller:
             while True:
-                state = go2_arx5_controller.get_state()
-                tcp_pose = state["ActualTCPPose"]
-                gripper_pos = state["gripper_position"]
-                timestamp = state["robot_timestamp"]
-                go2_arx5_controller.send_trajectory(
-                    tcp_pose.reshape(1,6).repeat(1, axis=0),
-                    gripper_pos.reshape(1,).repeat(1, axis=0),
-                    timestamp.reshape(1,).repeat(1, axis=0),
-                )
-                time.sleep(0.05)
+                # state = go2_arx5_controller.get_state()
+                # tcp_pose = state["ActualTCPPose"]
+                # gripper_pos = state["gripper_position"]
+                # timestamp = state["robot_timestamp"]
+                # go2_arx5_controller.send_trajectory(
+                #     tcp_pose.reshape(1,6).repeat(1, axis=0),
+                #     gripper_pos.reshape(1,).repeat(1, axis=0),
+                #     timestamp.reshape(1,).repeat(1, axis=0),
+                # )
+                # time.sleep(0.05)
+                keys = go2_arx5_controller.get_joystick_events()
+                print(keys)
+                time.sleep(1)
 
 
     
