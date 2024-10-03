@@ -188,6 +188,10 @@ class Arx5Client:
     def set_ee_pose(
         self, pose_6d: npt.NDArray[np.float64], gripper_pos: Union[float, None] = None
     ):
+        # gripper_pos = 1.5 * gripper_pos - 0.045
+        # if gripper_pos = 0.048 + (gripper_pos - 0.056) * 0.037 / 0.029
+        # gripper_pos -= 0.01sssssss
+        print(f'gripper pos: {gripper_pos}')
         reply_msg = self.send_recv(
             {
                 "cmd": "SET_EE_POSE",

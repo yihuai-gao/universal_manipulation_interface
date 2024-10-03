@@ -252,7 +252,8 @@ class Arx5Controller(mp.Process):
                 t_now = time.monotonic()
                 pose_cmd = pose_interp(t_now)
                 gripper_cmd = float(gripper_pos_interp(t_now)[0])
-
+                # print(f'gripper_cmd:{gripper_cmd}')
+                # gripper_cmd = 0.08
                 self.robot_client.set_tcp_pose(pose_cmd, gripper_cmd)
                 state = dict()
                 for key, func_name in self.receive_keys:
@@ -388,8 +389,8 @@ class Arx5Controller(mp.Process):
                             error = np.sum(np.abs(input_pose_samples - pose_samples) * error_weights)
                             errors.append(error)
                         errors = np.array(errors)
-                        # best_latency = np.arange(matching_dt, max_latency, latency_precision)[np.argmin(errors)]
-                        best_latency = 0.0
+                        best_latency = np.arange(matching_dt, max_latency, latency_precision)[np.argmin(errors)]
+                        # best_latency = 0.0
 
                         smoothened_input_poses = input_poses
                         new_times = input_times - input_times[0] + t_now - best_latency

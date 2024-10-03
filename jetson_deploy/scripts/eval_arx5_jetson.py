@@ -22,7 +22,7 @@ Press "S" to stop evaluation and gain control back.
 # %%
 import sys
 import os
-
+from queue import Queue
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(ROOT_DIR)
 os.chdir(ROOT_DIR)
@@ -100,6 +100,7 @@ def solve_sphere_collision(ee_poses, robots_config):
                 ee_poses[this_robot_idx][:6] = mat_to_pose(this_sphere_mat_global @ np.linalg.inv(this_sphere_mat_local))
                 ee_poses[that_robot_idx][:6] = mat_to_pose(np.linalg.inv(this_that_mat) @ that_sphere_mat_global @ np.linalg.inv(that_sphere_mat_local))
 
+
 @click.command()
 @click.option('--input', '-i', required=True, help='Path to checkpoint')
 @click.option('--output', '-o', required=True, help='Directory to save recording')
@@ -111,7 +112,7 @@ def solve_sphere_collision(ee_poses, robots_config):
 @click.option('--camera_reorder', '-cr', default='0')
 @click.option('--vis_camera_idx', default=0, type=int, help="Which RealSense camera to visualize.")
 @click.option('--init_joints', '-j', is_flag=True, default=False, help="Whether to initialize robot joint configuration in the beginning.")
-@click.option('--steps_per_inference', '-si', default=8, type=int, help="Action horizon for inference.")
+@click.option('--steps_per_inference', '-si', default=12, type=int, help="Action horizon for inference.")
 @click.option('--max_duration', '-md', default=2000000, help='Max duration for each epoch in seconds.')
 @click.option('--frequency', '-f', default=10, type=float, help="Control frequency in Hz.")
 @click.option('--command_latency', '-cl', default=0.01, type=float, help="Latency between receiving SapceMouse command to executing on Robot in Sec.")
@@ -152,7 +153,9 @@ def main(input, output, policy_ip, policy_port,
     cfg_path = ckpt_path.replace('.ckpt', '.yaml')
     with open(cfg_path, 'r') as f:
         cfg = OmegaConf.load(f)
-
+    # import torch
+    # payload = torch.load(open(ckpt_path, 'rb'), map_location='cpu', pickle_module=dill)
+    # cfg = payload['cfg']
     obs_pose_rep = cfg.task.pose_repr.obs_pose_repr
     action_pose_repr = cfg.task.pose_repr.action_pose_repr
     print('obs_pose_rep', obs_pose_rep)
@@ -168,7 +171,7 @@ def main(input, output, policy_ip, policy_port,
     robots_config = [
         {
             "robot_type": "arx5",
-            "robot_ip": "192.168.123.18",
+            "robot_ip": "127.0.0.1",
             "robot_port": 8765,
             "robot_obs_latency": 0.005, # TODO: need to measure
             "robot_action_latency": 0.04, # TODO: need to measure
@@ -346,10 +349,21 @@ def main(input, output, policy_ip, policy_port,
 
                     if start_policy:
                         break
-
+                    window_size = 20
+                    spacemouse_queue = Queue(window_size)
+                    def get_filtered_spacemouse_output(sm: Spacemouse):
+                        state = sm.get_motion_state_transformed()
+                        if (
+                            spacemouse_queue.maxsize > 0
+                            and spacemouse_queue._qsize() == spacemouse_queue.maxsize
+                        ):
+                            spacemouse_queue._get()
+                        spacemouse_queue.put_nowait(state)
+                        return np.mean(np.array(list(spacemouse_queue.queue)), axis=0)
                     precise_wait(t_sample)
                     # get teleop command
                     sm_state = sm.get_motion_state_transformed()
+                    # sm_state = get_filtered_spacemouse_output(sm)
                     # print(sm_state)
                     dpos = sm_state[:3] * (0.5 / frequency) * cartesian_speed
                     drot_xyz = sm_state[3:] * (1.5 / frequency) * orientation_speed
