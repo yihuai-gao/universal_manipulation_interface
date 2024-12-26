@@ -35,7 +35,10 @@ class SequenceSampler:
         episode_ends = replay_buffer.episode_ends[:]
 
         # load gripper_width
-        gripper_width = replay_buffer['robot0_gripper_width'][:, 0]
+        if 'robot0_gripper_width' in replay_buffer:
+            gripper_width = replay_buffer['robot0_gripper_width'][:, 0]
+        elif 'robot_0_gripper_width' in replay_buffer:
+            gripper_width = replay_buffer['robot_0_gripper_width'][:, 0]
         gripper_width_threshold = 0.08
         self.repeat_frame_prob = repeat_frame_prob
 
@@ -61,7 +64,7 @@ class SequenceSampler:
         self.replay_buffer = dict()
         self.num_robot = 0
         for key in lowdim_keys:
-            if key.endswith('eef_pos'):
+            if key.endswith('eef_pos') or key.endswith('tcp_xyz_wxyz'):
                 self.num_robot += 1
 
             if key.endswith('pos_abs'):
@@ -96,8 +99,8 @@ class SequenceSampler:
             # construct action (concatenation of [eef_pos, eef_rot, gripper_width])
             actions = list()
             for robot_idx in range(self.num_robot):
-                for cat in ['eef_pos', 'eef_rot_axis_angle', 'gripper_width']:
-                    key = f'robot{robot_idx}_{cat}'
+                for cat in ['tcp_xyz_wxyz', 'gripper_width']:
+                    key = f'robot_{robot_idx}_{cat}'
                     if key in self.replay_buffer:
                         actions.append(self.replay_buffer[key])
             self.replay_buffer['action'] = np.concatenate(actions, axis=-1)
