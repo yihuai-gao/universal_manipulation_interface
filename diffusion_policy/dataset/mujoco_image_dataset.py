@@ -6,6 +6,8 @@ import hydra
 import sys
 import os
 
+import tqdm
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(ROOT_DIR)
 from diffusion_policy.common.pytorch_util import dict_apply
@@ -32,7 +34,7 @@ class MujocoImageDataset(BaseImageDataset):
             ):
         
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            dataset_path, keys=['robot_0_camera_images', 'robot_0_tcp_xyz_wxyz', 'robot_0_gripper_width', 'action_0_tcp_xyz_wxyz', 'action_0_gripper_width'])
+            dataset_path, keys=['robot0_camera_images', 'robot0_tcp_xyz_wxyz', 'robot0_gripper_width', 'action0_tcp_xyz_wxyz', 'action0_gripper_width'])
 
 
         self.num_robot = 0
@@ -50,7 +52,7 @@ class MujocoImageDataset(BaseImageDataset):
             elif type == 'low_dim':
                 lowdim_keys.append(key)
 
-            if key.endswith('eef_pos'):
+            if key.endswith('tcp_xyz_wxyz'):
                 self.num_robot += 1
 
             # solve obs_horizon
@@ -142,26 +144,64 @@ class MujocoImageDataset(BaseImageDataset):
         return val_set
 
     def get_normalizer(self, mode='limits', **kwargs):
-
         normalizer = LinearNormalizer()
-        data = {
-            'action': np.concatenate([self.replay_buffer['action_0_tcp_xyz_wxyz'], self.replay_buffer['action_0_gripper_width']], axis=-1),
-            'proprioception': np.concatenate([self.replay_buffer['robot_0_tcp_xyz_wxyz'], self.replay_buffer['robot_0_gripper_width']], axis=-1),
-            'image': self.replay_buffer['robot_0_camera_images']
-        }
 
-        dim_a = data['action'].shape[-1]
+        # enumerate the dataset and save low_dim data
+        data_cache = {key: list() for key in self.lowdim_keys + ['action']}
+        self.sampler.ignore_rgb(True)
+        dataloader = torch.utils.data.DataLoader(
+            dataset=self,
+            batch_size=64,
+            num_workers=32,
+        )
+        for batch in tqdm.tqdm(dataloader, desc='iterating dataset to get normalization'):
+            for key in self.lowdim_keys:
+                data_cache[key].append(copy.deepcopy(batch['obs'][key]))
+            data_cache['action'].append(copy.deepcopy(batch['action']))
+        self.sampler.ignore_rgb(False)
+
+        for key in data_cache.keys():
+            data_cache[key] = np.concatenate(data_cache[key])
+            assert data_cache[key].shape[0] == len(self.sampler)
+            assert len(data_cache[key].shape) == 3
+            B, T, D = data_cache[key].shape
+            if not self.temporally_independent_normalization:
+                data_cache[key] = data_cache[key].reshape(B*T, D)
+
+        # action
+        assert data_cache['action'].shape[-1] % self.num_robot == 0
+        dim_a = data_cache['action'].shape[-1] // self.num_robot
         action_normalizers = list()
-        action_normalizers.append(get_range_normalizer_from_stat(array_to_stats(data['action'][..., i * dim_a: i * dim_a + 3])))              # pos
-        action_normalizers.append(get_range_normalizer_from_stat(array_to_stats(data['action'][..., i * dim_a + 3: (i + 1) * dim_a - 1]))) # rot
-        action_normalizers.append(get_range_normalizer_from_stat(array_to_stats(data['action'][..., (i + 1) * dim_a - 1: (i + 1) * dim_a])))  # gripper
+        for i in range(self.num_robot):
+            action_normalizers.append(get_range_normalizer_from_stat(array_to_stats(data_cache['action'][..., i * dim_a: i * dim_a + 3])))              # pos
+            action_normalizers.append(get_identity_normalizer_from_stat(array_to_stats(data_cache['action'][..., i * dim_a + 3: (i + 1) * dim_a - 1]))) # rot
+            action_normalizers.append(get_range_normalizer_from_stat(array_to_stats(data_cache['action'][..., (i + 1) * dim_a - 1: (i + 1) * dim_a])))  # gripper
 
-        normalizer['image'] = get_image_identity_normalizer()
         normalizer['action'] = concatenate_normalizer(action_normalizers)
 
-        normalizer['proprioception'] = concatenate_normalizer(action_normalizers)
+        # obs
+        for key in self.lowdim_keys:
+            stat = array_to_stats(data_cache[key])
 
+            if key.endswith('pos') or 'pos_wrt' in key:
+                this_normalizer = get_range_normalizer_from_stat(stat)
+            elif key.endswith('pos_abs'):
+                this_normalizer = get_range_normalizer_from_stat(stat)
+            elif key.endswith('rot_axis_angle') or 'rot_axis_angle_wrt' in key:
+                this_normalizer = get_identity_normalizer_from_stat(stat)
+            elif key.endswith('gripper_width'):
+                this_normalizer = get_range_normalizer_from_stat(stat)
+            elif key.endswith('xyz_wxyz'):
+                pos_normalizer = get_range_normalizer_from_stat(array_to_stats(data_cache[key][..., :3]))
+                rot_normalizer = get_identity_normalizer_from_stat(array_to_stats(data_cache[key][..., 3:]))
+                this_normalizer = concatenate_normalizer([pos_normalizer, rot_normalizer])
+            else:
+                raise RuntimeError('unsupported')
+            normalizer[key] = this_normalizer
 
+        # image
+        for key in self.rgb_keys:
+            normalizer[key] = get_image_identity_normalizer()
         return normalizer
 
     def __len__(self) -> int:
@@ -169,18 +209,18 @@ class MujocoImageDataset(BaseImageDataset):
 
     def _sample_to_data(self, sample):
         # proprioception = sample['state'][:,:2].astype(np.float32) # (proprioceptionx2, block_posex3)
-        pose = np.concatenate([sample['robot_0_tcp_xyz_wxyz'], sample['robot_0_gripper_width']], axis=-1).astype(np.float32)
-        agent_action = sample['action']
         # image = np.moveaxis(sample['img'],-1,1)/255
-        image = np.moveaxis(sample['robot_0_camera_images'].astype(np.float32).squeeze(1),-1,1)/255
 
         data = {
             'obs': {
-                'image': image, # T, 3, 224, 224
-                'proprioception': pose, # T, 8 (x,y,z,qx,qy,qz,qw,gripper_width)
+                'robot0_tcp_xyz_wxyz': sample['robot0_tcp_xyz_wxyz'].astype(np.float32), # T, 7 (x,y,z,qx,qy,qz,qw)
+                'robot0_gripper_width': sample['robot0_gripper_width'].astype(np.float32), # T, 1
             },
-            'action': agent_action # T, 8 (x,y,z,qx,qy,qz,qw,gripper_width)
+            'action': sample['action'].astype(np.float32) # T, 8 (x,y,z,qx,qy,qz,qw,gripper_width)
         }
+        if 'robot0_camera_images' in sample:
+            image = np.moveaxis(sample['robot0_camera_images'].astype(np.float32).squeeze(1),-1,1)/255
+            data['obs']['robot0_camera_images'] = image # T, 3, 224, 224
         return data
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
@@ -198,11 +238,11 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 )
 def main(cfg):
     import os
-    dataset_path = os.path.expanduser('/home/yihuai/robotics/repositories/mujoco/mujoco-env/data/collect_heuristic_data/2024-12-25_10-08-27_100episodes/merged_data.zarr')
+    dataset_path = os.path.expanduser('/home/yihuai/robotics/repositories/mujoco/mujoco-env/data/collect_heuristic_data/2024-12-26_16-56-50_100episodes/merged_data.zarr')
     print(cfg.task.shape_meta)
     dataset = MujocoImageDataset(cfg.task.shape_meta, dataset_path)
     
-    print(dataset[0])
+    # print(dataset[0])
     for key, value in dataset[0]["obs"].items():
         print(key, value.shape)
 

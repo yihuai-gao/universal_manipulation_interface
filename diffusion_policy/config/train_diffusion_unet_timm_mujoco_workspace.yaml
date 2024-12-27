@@ -115,14 +115,14 @@ ema:
   max_value: 0.9999
 
 dataloader:
-  batch_size: 64
+  batch_size: 32
   num_workers: 8
   shuffle: True
   pin_memory: True
   persistent_workers: True
 
 val_dataloader:
-  batch_size: 64
+  batch_size: 32
   num_workers: 8
   shuffle: False
   pin_memory: True
@@ -165,8 +165,8 @@ training:
   freeze_encoder: False
   # training loop control
   # in epochs
-  rollout_every: 10
-  checkpoint_every: 10
+  rollout_every: 10000 # Do not rollout
+  checkpoint_every: 5
   val_every: 1
   sample_every: 5
   # steps per epoch
