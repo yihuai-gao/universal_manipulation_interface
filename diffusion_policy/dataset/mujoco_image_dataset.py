@@ -19,6 +19,52 @@ from diffusion_policy.common.normalize_util import array_to_stats, concatenate_n
 from diffusion_policy.common.sampler import (
     SequenceSampler, get_val_mask)
 
+import numpy.typing as npt
+from transforms3d import quaternions
+
+def get_absolute_pose(
+    init_pose_xyz_wxyz: npt.NDArray[np.float64],
+    relative_pose_xyz_wxyz: npt.NDArray[np.float64],
+):
+    """The new pose is in the same frame of reference as the initial pose"""
+    new_pose_xyz_wxyz = np.zeros(7, dtype=np.float64)
+    relative_pos_in_init_frame_as_quat_wxyz = np.zeros(4, dtype=np.float64)
+    relative_pos_in_init_frame_as_quat_wxyz[1:] = relative_pose_xyz_wxyz[:3]
+    init_rot_qinv = quaternions.qconjugate(init_pose_xyz_wxyz[3:])
+    relative_pos_in_world_frame_as_quat_wxyz = quaternions.qmult(
+        quaternions.qmult(
+            init_pose_xyz_wxyz[3:], relative_pos_in_init_frame_as_quat_wxyz
+        ),
+        init_rot_qinv,
+    )
+    new_pose_xyz_wxyz[:3] = (
+        init_pose_xyz_wxyz[:3] + relative_pos_in_world_frame_as_quat_wxyz[1:]
+    )
+    new_pose_xyz_wxyz[3:] = quaternions.qmult(
+        init_pose_xyz_wxyz[3:], relative_pose_xyz_wxyz[3:]
+    )
+    return new_pose_xyz_wxyz
+
+
+def get_relative_pose(
+    new_pose_xyz_wxyz: npt.NDArray[np.float64],
+    init_pose_xyz_wxyz: npt.NDArray[np.float64],
+):
+    """The two poses are in the same frame of reference"""
+    relative_pose_xyz_wxyz = np.zeros(7, dtype=np.float64)
+    relative_pos_in_world_frame_as_quat_wxyz = np.zeros(4, dtype=np.float64)
+    relative_pos_in_world_frame_as_quat_wxyz[1:] = (
+        new_pose_xyz_wxyz[:3] - init_pose_xyz_wxyz[:3]
+    )
+    init_rot_qinv = quaternions.qconjugate(init_pose_xyz_wxyz[3:])
+    relative_pose_xyz_wxyz[:3] = quaternions.qmult(
+        quaternions.qmult(init_rot_qinv, relative_pos_in_world_frame_as_quat_wxyz),
+        init_pose_xyz_wxyz[3:],
+    )[1:]
+    relative_pose_xyz_wxyz[3:] = quaternions.qmult(init_rot_qinv, new_pose_xyz_wxyz[3:])
+    return relative_pose_xyz_wxyz
+
+
 class MujocoImageDataset(BaseImageDataset):
     def __init__(self,
             shape_meta: dict,
@@ -36,6 +82,9 @@ class MujocoImageDataset(BaseImageDataset):
         self.replay_buffer = ReplayBuffer.copy_from_path(
             dataset_path, keys=['robot0_camera_images', 'robot0_tcp_xyz_wxyz', 'robot0_gripper_width', 'action0_tcp_xyz_wxyz', 'action0_gripper_width'])
 
+        self.obs_pose_repr = pose_repr.get('obs_pose_repr', 'rel')
+        self.action_pose_repr = pose_repr.get('action_pose_repr', 'rel')
+        print(f"Mujoco Image Dataset: obs_pose_repr: {self.obs_pose_repr}, action_pose_repr: {self.action_pose_repr}")
 
         self.num_robot = 0
         rgb_keys = list()
@@ -210,6 +259,18 @@ class MujocoImageDataset(BaseImageDataset):
     def _sample_to_data(self, sample):
         # proprioception = sample['state'][:,:2].astype(np.float32) # (proprioceptionx2, block_posex3)
         # image = np.moveaxis(sample['img'],-1,1)/255
+
+        init_abs_pose_xyz_wxyz = sample['robot0_tcp_xyz_wxyz'][-1]
+        if self.obs_pose_repr == "rel" or self.obs_pose_repr == "relative":
+            abs_traj = sample['robot0_tcp_xyz_wxyz']
+            for i in range(len(abs_traj)):
+                abs_traj[i] = get_relative_pose(abs_traj[i], init_abs_pose_xyz_wxyz)
+            sample['robot0_tcp_xyz_wxyz'] = abs_traj
+        if self.action_pose_repr == "rel" or self.action_pose_repr == "relative":
+            abs_traj = sample['action'][:, :7]
+            for i in range(len(abs_traj)):
+                abs_traj[i] = get_relative_pose(abs_traj[i], init_abs_pose_xyz_wxyz)
+            sample['action'][:, :7] = abs_traj
 
         data = {
             'obs': {
