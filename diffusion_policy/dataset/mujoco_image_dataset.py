@@ -259,25 +259,23 @@ class MujocoImageDataset(BaseImageDataset):
     def _sample_to_data(self, sample):
         # proprioception = sample['state'][:,:2].astype(np.float32) # (proprioceptionx2, block_posex3)
         # image = np.moveaxis(sample['img'],-1,1)/255
-
-        init_abs_pose_xyz_wxyz = sample['robot0_tcp_xyz_wxyz'][-1]
+        init_abs_pose_xyz_wxyz = sample['robot0_tcp_xyz_wxyz'][-1].copy().astype(np.float32)
+        robot0_tcp_xyz_wxyz = sample['robot0_tcp_xyz_wxyz'].copy().astype(np.float32)
+        robot0_gripper_width = sample['robot0_gripper_width'].copy().astype(np.float32)
+        action = sample['action'].copy().astype(np.float32)
         if self.obs_pose_repr == "rel" or self.obs_pose_repr == "relative":
-            abs_traj = sample['robot0_tcp_xyz_wxyz']
-            for i in range(len(abs_traj)):
-                abs_traj[i] = get_relative_pose(abs_traj[i], init_abs_pose_xyz_wxyz)
-            sample['robot0_tcp_xyz_wxyz'] = abs_traj
+            for i in range(robot0_tcp_xyz_wxyz.shape[0]):
+                robot0_tcp_xyz_wxyz[i] = get_relative_pose(robot0_tcp_xyz_wxyz[i], init_abs_pose_xyz_wxyz)
         if self.action_pose_repr == "rel" or self.action_pose_repr == "relative":
-            abs_traj = sample['action'][:, :7]
-            for i in range(len(abs_traj)):
-                abs_traj[i] = get_relative_pose(abs_traj[i], init_abs_pose_xyz_wxyz)
-            sample['action'][:, :7] = abs_traj
+            for i in range(action.shape[0]):
+                action[i, :7] = get_relative_pose(action[i, :7], init_abs_pose_xyz_wxyz)
 
         data = {
             'obs': {
-                'robot0_tcp_xyz_wxyz': sample['robot0_tcp_xyz_wxyz'].astype(np.float32), # T, 7 (x,y,z,qx,qy,qz,qw)
-                'robot0_gripper_width': sample['robot0_gripper_width'].astype(np.float32), # T, 1
+                'robot0_tcp_xyz_wxyz': robot0_tcp_xyz_wxyz, # T, 7 (x,y,z,qx,qy,qz,qw)
+                'robot0_gripper_width': robot0_gripper_width, # T, 1
             },
-            'action': sample['action'].astype(np.float32) # T, 8 (x,y,z,qx,qy,qz,qw,gripper_width)
+            'action': action # T, 8 (x,y,z,qx,qy,qz,qw,gripper_width)
         }
         if 'robot0_camera_images' in sample:
             image = np.moveaxis(sample['robot0_camera_images'].astype(np.float32).squeeze(1),-1,1)/255
@@ -299,15 +297,15 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 )
 def main(cfg):
     import os
-    dataset_path = os.path.expanduser('/home/yihuai/robotics/repositories/mujoco/mujoco-env/data/collect_heuristic_data/2024-12-26_16-56-50_100episodes/merged_data.zarr')
+    dataset_path = os.path.expanduser('/local/real/yihuai/repositories/mujoco-env/data/collect_heuristic_data/2024-12-27_13-33-43_300episodes/merged_data.zarr')
     print(cfg.task.shape_meta)
-    dataset = MujocoImageDataset(cfg.task.shape_meta, dataset_path)
-    
-    # print(dataset[0])
-    for key, value in dataset[0]["obs"].items():
-        print(key, value.shape)
+    while True:
+        dataset = MujocoImageDataset(cfg.task.shape_meta, dataset_path)
+        
+        # print(dataset[0])
+        for key, value in dataset[0]["obs"].items():
+            print(key, value.shape)
 
-    print(dataset[0]['action'].shape)
 
 if __name__ == '__main__':
 
