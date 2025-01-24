@@ -35,7 +35,12 @@ class SequenceSampler:
         episode_ends = replay_buffer.episode_ends[:]
 
         # load gripper_width
-        gripper_width = replay_buffer['robot0_gripper_width'][:, 0]
+        if 'robot_0_gripper_width' in replay_buffer:
+            gripper_width = replay_buffer['robot_0_gripper_width'][:, 0]
+        elif 'robot0_gripper_width' in replay_buffer:
+            gripper_width = replay_buffer['robot0_gripper_width'][:, 0]
+        else:
+            raise ValueError('gripper_width not found')
         gripper_width_threshold = 0.08
         self.repeat_frame_prob = repeat_frame_prob
 
@@ -96,9 +101,9 @@ class SequenceSampler:
             # construct action (concatenation of [eef_pos, eef_rot, gripper_width])
             actions = list()
             for robot_idx in range(self.num_robot):
-                if f"action{robot_idx}_tcp_xyz_wxyz" in replay_buffer:
+                if f"action_{robot_idx}_tcp_xyz_wxyz" in replay_buffer:
                     for cat in ['tcp_xyz_wxyz', 'gripper_width']:
-                        key = f'action{robot_idx}_{cat}'
+                        key = f'action_{robot_idx}_{cat}'
                         if key in replay_buffer:
                             actions.append(replay_buffer[key])
                 else:

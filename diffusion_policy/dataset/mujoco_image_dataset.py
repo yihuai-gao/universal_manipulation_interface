@@ -80,7 +80,7 @@ class MujocoImageDataset(BaseImageDataset):
             ):
         
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            dataset_path, keys=['robot0_camera_images', 'robot0_tcp_xyz_wxyz', 'robot0_gripper_width', 'action0_tcp_xyz_wxyz', 'action0_gripper_width'])
+            dataset_path, keys=['robot_0_wrist_camera', 'robot_0_tcp_xyz_wxyz', 'robot_0_gripper_width', 'action_0_tcp_xyz_wxyz', 'action_0_gripper_width'])
 
         self.obs_pose_repr = pose_repr.get('obs_pose_repr', 'rel')
         self.action_pose_repr = pose_repr.get('action_pose_repr', 'rel')
@@ -259,9 +259,9 @@ class MujocoImageDataset(BaseImageDataset):
     def _sample_to_data(self, sample):
         # proprioception = sample['state'][:,:2].astype(np.float32) # (proprioceptionx2, block_posex3)
         # image = np.moveaxis(sample['img'],-1,1)/255
-        init_abs_pose_xyz_wxyz = sample['robot0_tcp_xyz_wxyz'][-1].copy().astype(np.float32)
-        robot0_tcp_xyz_wxyz = sample['robot0_tcp_xyz_wxyz'].copy().astype(np.float32)
-        robot0_gripper_width = sample['robot0_gripper_width'].copy().astype(np.float32)
+        init_abs_pose_xyz_wxyz = sample['robot_0_tcp_xyz_wxyz'][-1].copy().astype(np.float32)
+        robot0_tcp_xyz_wxyz = sample['robot_0_tcp_xyz_wxyz'].copy().astype(np.float32)
+        robot0_gripper_width = sample['robot_0_gripper_width'].copy().astype(np.float32)
         action = sample['action'].copy().astype(np.float32)
         if self.obs_pose_repr == "rel" or self.obs_pose_repr == "relative":
             for i in range(robot0_tcp_xyz_wxyz.shape[0]):
@@ -272,14 +272,14 @@ class MujocoImageDataset(BaseImageDataset):
 
         data = {
             'obs': {
-                'robot0_tcp_xyz_wxyz': robot0_tcp_xyz_wxyz, # T, 7 (x,y,z,qx,qy,qz,qw)
-                'robot0_gripper_width': robot0_gripper_width, # T, 1
+                'robot_0_tcp_xyz_wxyz': robot0_tcp_xyz_wxyz, # T, 7 (x,y,z,qx,qy,qz,qw)
+                'robot_0_gripper_width': robot0_gripper_width, # T, 1
             },
             'action': action # T, 8 (x,y,z,qx,qy,qz,qw,gripper_width)
         }
-        if 'robot0_camera_images' in sample:
-            image = np.moveaxis(sample['robot0_camera_images'].astype(np.float32).squeeze(1),-1,1)/255
-            data['obs']['robot0_camera_images'] = image # T, 3, 224, 224
+        if 'robot_0_wrist_camera' in sample:
+            image = np.moveaxis(sample['robot_0_wrist_camera'].astype(np.float32),-1,1)/255
+            data['obs']['robot_0_wrist_camera'] = image # T, 3, 224, 224
         return data
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
