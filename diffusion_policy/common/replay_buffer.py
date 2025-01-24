@@ -170,7 +170,7 @@ class ReplayBuffer:
             data = dict()
             for key in keys:
                 arr = src_root['data'][key]
-                data[key] = arr[:]
+                data[key] = arr
 
             root = {
                 'meta': meta,
