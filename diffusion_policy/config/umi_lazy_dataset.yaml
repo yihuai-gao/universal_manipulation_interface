@@ -1,0 +1,101 @@
+_target_: diffusion_policy.dataset.umi_lazy_dataset.UmiLazyDataset
+
+robot_num: 1
+
+zarr_path: ???
+used_episode_ratio: 0.9
+history_padding_length: 15
+future_padding_length: 16
+starting_percentile_max: 1.0
+starting_percentile_min: 0.0
+index_pool_size_per_episode: -1 # Use all indices
+seed: 42
+use_relative_pose: true
+
+source_data_meta:
+  - name: camera0_rgb
+    include_indices: ${eval:"ListConfig(list(range(-15, 17)))"} # 15 frames into the past, 16 frames into the future
+    shape: [224, 224, 3]
+
+  - name: robot0_demo_start_pose
+    include_indices: [0]
+    shape: [6]
+
+  - name: robot0_eef_pos
+    include_indices: ${eval:"ListConfig(list(range(-15, 17)))"}
+    shape: [3]
+
+  - name: robot0_eef_rot_axis_angle
+    include_indices: ${eval:"ListConfig(list(range(-15, 17)))"}
+    shape: [3]
+
+  - name: robot0_gripper_width
+    include_indices: ${eval:"ListConfig(list(range(-15, 17)))"}
+    shape: [1]
+
+output_data_meta:
+  - name: camera0_rgb
+    data_type: image
+    length: 32
+    normalizer: identity
+    augmentation:
+      - name: RandomCrop
+        size: 208
+      - name: Resize
+        size: 224
+        antialias: True
+      - name: ColorJitter
+        brightness: 0.3
+        contrast: 0.4
+      - name: Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    shape: [3, 224, 224] # For pytorch compatibility
+    usage: obs
+
+  - name: robot0_eef_pos
+    data_type: low_dim
+    length: 16 # 16 frames into the past
+    normalizer: identity
+    augmentation: []
+    shape: [3]
+    usage: obs
+
+  - name: robot0_eef_rot_axis_angle
+    data_type: low_dim
+    length: 16 # 16 frames into the past
+    normalizer: identity
+    augmentation: []
+    shape: [6]
+    usage: obs
+
+  - name: robot0_eef_rot_axis_angle_wrt_start
+    data_type: low_dim
+    length: 16 # 16 frames into the past
+    normalizer: identity
+    augmentation: []
+    shape: [6]
+    usage: obs
+
+  - name: robot0_gripper_width
+    data_type: low_dim
+    length: 16 # 16 frames into the past
+    normalizer: identity
+    augmentation: []
+    shape: [1]
+    usage: obs
+
+  - name: action
+    data_type: low_dim
+    length: 16 # 16 frames into the future
+    normalizer: identity
+    augmentation: []
+    shape: [10]
+    usage: action
+  
+dataloader_cfg:
+  batch_size: 64
+  num_workers: 8
+  shuffle: True
+  pin_memory: True
+  persistent_workers: True

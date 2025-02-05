@@ -106,7 +106,7 @@ class SingleFieldLinearNormalizer(nn.Module):
 
     def from_dict(
         self,
-        state_dict: dict[str, torch.Tensor | npt.NDArray[np.float32] | list[float]],
+        state_dict: dict[str, Union[torch.Tensor, npt.NDArray[np.float32], list[float]]],
     ):
         if self.normalizer_type == "identity":
             return
@@ -279,7 +279,7 @@ class FixedNormalizer(nn.Module):
         self,
         state_dict: dict[
             str,
-            dict[str, dict[str, torch.Tensor | npt.NDArray[np.float32] | list[float]]],
+            dict[str, dict[str, Union[torch.Tensor, npt.NDArray[np.float32], list[float]]]],
         ],
     ):
         for meta in self.data_meta:
