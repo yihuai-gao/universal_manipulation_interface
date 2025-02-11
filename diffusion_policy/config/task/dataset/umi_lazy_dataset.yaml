@@ -8,7 +8,7 @@ history_padding_length: 3
 future_padding_length: 48
 starting_percentile_max: 1.0
 starting_percentile_min: 0.0
-index_pool_size_per_episode: 10 # -1 means use all indices
+index_pool_size_per_episode: -1 # -1 means using all indices
 seed: 42
 use_relative_pose: true
 
