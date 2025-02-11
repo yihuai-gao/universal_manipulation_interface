@@ -27,10 +27,16 @@ class UmiLazyDataset(BaseLazyDataset):
     │   └── robot0_gripper_width (2315, 1) float32
     └── meta
         └── episode_ends (5,) int64
-
     """
 
-    def __init__(self, robot_num: int, use_relative_pose: bool, **kwargs):
+    def __init__(self, robot_num: int, use_relative_pose: bool, down_sample_steps: int, **kwargs):
+        
+        self.down_sample_steps: int = down_sample_steps
+        kwargs['history_padding_length'] = kwargs['history_padding_length'] * down_sample_steps
+        kwargs['future_padding_length'] = kwargs['future_padding_length'] * down_sample_steps
+        for meta in kwargs['source_data_meta']:
+            meta['include_indices'] = [i * down_sample_steps for i in meta['include_indices']]
+
         super().__init__(**kwargs)
 
         data_store = self.zarr_store["data"]
