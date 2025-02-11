@@ -358,13 +358,6 @@ class BaseLazyDataset(Dataset[batch_type]):
         self.dataloader_cfg: dict[str, Any] = dataloader_cfg
         self.starting_percentile_max: float = starting_percentile_max
         self.starting_percentile_min: float = starting_percentile_min
-        if os.path.exists(f"{self.zarr_path}/../sim_config.yaml"):
-            print(f"sim_config.yaml found in {self.zarr_path}/../")
-            sim_config_dict = OmegaConf.load(f"{self.zarr_path}/../sim_config.yaml")
-            self.sim_config_str = OmegaConf.to_yaml(sim_config_dict, resolve=False)
-        else:
-            print(f"sim_config.yaml not found in {self.zarr_path}/../")
-            self.sim_config_str = ""
 
         zarr_store = zarr.open(self.zarr_path, mode="r")
         assert isinstance(

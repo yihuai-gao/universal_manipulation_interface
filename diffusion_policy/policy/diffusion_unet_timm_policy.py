@@ -127,7 +127,8 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
         """
         assert 'past_action' not in obs_dict # not implemented yet
         # normalize input
-        nobs = self.normalizer.normalize(obs_dict)
+        # nobs = self.normalizer.normalize(obs_dict)
+        nobs = obs_dict
         B = next(iter(nobs.values())).shape[0]
 
         # condition through global feature
@@ -154,7 +155,8 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
         
         # unnormalize prediction
         assert nsample.shape == (B, self.action_horizon, self.action_dim)
-        action_pred = self.normalizer['action'].unnormalize(nsample)
+        # action_pred = self.normalizer['action'].unnormalize(nsample)
+        action_pred = nsample
         
         result = {
             'action': action_pred,
@@ -169,8 +171,10 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
     def compute_loss(self, batch):
         # normalize input
         assert 'valid_mask' not in batch
-        nobs = self.normalizer.normalize(batch['obs'])
-        nactions = self.normalizer['action'].normalize(batch['action'])
+        # nobs = self.normalizer.normalize(batch['obs'])
+        # nactions = self.normalizer['action'].normalize(batch['action'])
+        nobs = batch['obs']
+        nactions = batch['action']
         
         assert self.obs_as_global_cond
         global_cond = self.obs_encoder(nobs)

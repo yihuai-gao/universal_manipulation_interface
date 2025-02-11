@@ -8,6 +8,7 @@ if __name__ == "__main__":
     os.chdir(ROOT_DIR)
 
 import os
+from diffusion_policy.dataset.umi_lazy_dataset import UmiLazyDataset
 import hydra
 import torch
 from omegaconf import OmegaConf
@@ -108,30 +109,33 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
                 self.load_checkpoint(path=lastest_ckpt_path)
 
         # configure dataset
-        dataset: BaseImageDataset
+        # dataset: BaseImageDataset
         dataset = hydra.utils.instantiate(cfg.task.dataset)
-        assert isinstance(dataset, BaseImageDataset) or isinstance(dataset, BaseDataset)
+        # assert isinstance(dataset, BaseImageDataset) or isinstance(dataset, BaseDataset)
+        assert isinstance(dataset, UmiLazyDataset)
+
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
 
-        # compute normalizer on the main process and save to disk
-        normalizer_path = os.path.join(self.output_dir, 'normalizer.pkl')
-        if accelerator.is_main_process:
-            normalizer = dataset.get_normalizer()
-            pickle.dump(normalizer, open(normalizer_path, 'wb'))
+        # # compute normalizer on the main process and save to disk
+        # normalizer_path = os.path.join(self.output_dir, 'normalizer.pkl')
+        # if accelerator.is_main_process:
+        #     normalizer = dataset.get_normalizer()
+        #     pickle.dump(normalizer, open(normalizer_path, 'wb'))
 
         # load normalizer on all processes
         accelerator.wait_for_everyone()
-        normalizer = pickle.load(open(normalizer_path, 'rb'))
+        # normalizer = pickle.load(open(normalizer_path, 'rb'))
 
         # configure validation dataset
-        val_dataset = dataset.get_validation_dataset()
+        # val_dataset = dataset.get_validation_dataset()
+        val_dataset = dataset.split_unused_episodes()
         val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
         print('train dataset:', len(dataset), 'train dataloader:', len(train_dataloader))
         print('val dataset:', len(val_dataset), 'val dataloader:', len(val_dataloader))
 
-        self.model.set_normalizer(normalizer)
-        if cfg.training.use_ema:
-            self.ema_model.set_normalizer(normalizer)
+        # self.model.set_normalizer(normalizer)
+        # if cfg.training.use_ema:
+        #     self.ema_model.set_normalizer(normalizer)
 
         # configure lr scheduler
         lr_scheduler = get_scheduler(
