@@ -107,7 +107,7 @@ class SequenceSampler:
                         if key in replay_buffer:
                             actions.append(replay_buffer[key])
                 else:
-                    for cat in ['eef_pos', 'eef_rot', 'gripper_width']:
+                    for cat in ['eef_pos', 'eef_rot_axis_angle', 'gripper_width']:
                         key = f'robot{robot_idx}_{cat}'
                         if key in self.replay_buffer:
                             actions.append(self.replay_buffer[key])

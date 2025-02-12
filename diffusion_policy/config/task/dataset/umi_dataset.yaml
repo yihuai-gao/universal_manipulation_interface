@@ -1,0 +1,11 @@
+_target_: diffusion_policy.dataset.umi_dataset.UmiDataset
+shape_meta: ${task.shape_meta}
+dataset_path: ${task.dataset_path}
+cache_dir: null
+pose_repr: ${task.pose_repr}
+action_padding: False
+temporally_independent_normalization: False
+repeat_frame_prob: 0.0
+max_duration: null
+seed: 42
+val_ratio: 0.05

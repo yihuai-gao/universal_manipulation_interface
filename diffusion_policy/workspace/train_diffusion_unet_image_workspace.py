@@ -92,7 +92,12 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
         cfg = copy.deepcopy(self.cfg)
         print(cfg.shape_meta)
 
-        accelerator = Accelerator(log_with='wandb')
+        if "mixed_precision" in cfg.training:
+            accelerator = Accelerator(log_with='wandb', mixed_precision=cfg.training.mixed_precision)
+            print(f'using mixed precision: {cfg.training.mixed_precision}')
+        else:
+            accelerator = Accelerator(log_with='wandb')
+            
         wandb_cfg = OmegaConf.to_container(cfg.logging, resolve=True)
         wandb_cfg.pop('project')
         accelerator.init_trackers(
@@ -112,7 +117,7 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
         # dataset: BaseImageDataset
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         # assert isinstance(dataset, BaseImageDataset) or isinstance(dataset, BaseDataset)
-        assert isinstance(dataset, UmiLazyDataset)
+        # assert isinstance(dataset, UmiLazyDataset)
 
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
 
@@ -127,8 +132,10 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
         # normalizer = pickle.load(open(normalizer_path, 'rb'))
 
         # configure validation dataset
-        # val_dataset = dataset.get_validation_dataset()
-        val_dataset = dataset.split_unused_episodes()
+        if isinstance(dataset, UmiLazyDataset):
+            val_dataset = dataset.split_unused_episodes()
+        else:
+            val_dataset = dataset.get_validation_dataset()
         val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
         print('train dataset:', len(dataset), 'train dataloader:', len(train_dataloader))
         print('val dataset:', len(val_dataset), 'val dataloader:', len(val_dataloader))

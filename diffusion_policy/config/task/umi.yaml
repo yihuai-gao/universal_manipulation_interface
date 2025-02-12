@@ -1,5 +1,6 @@
 defaults:
-  - dataset: umi_lazy_dataset
+  # - dataset: umi_lazy_dataset
+  - dataset: umi_dataset
   - _self_
 
 name: umi
@@ -95,15 +96,3 @@ pose_repr: &pose_repr
 env_runner:
   _target_: diffusion_policy.env_runner.real_pusht_image_runner.RealPushTImageRunner
 
-# dataset:
-#   _target_: diffusion_policy.dataset.umi_dataset.UmiDataset
-#   shape_meta: *shape_meta
-#   dataset_path: ${task.dataset_path}
-#   cache_dir: null
-#   pose_repr: *pose_repr
-#   action_padding: False
-#   temporally_independent_normalization: False
-#   repeat_frame_prob: 0.0
-#   max_duration: null
-#   seed: 42
-#   val_ratio: 0.05

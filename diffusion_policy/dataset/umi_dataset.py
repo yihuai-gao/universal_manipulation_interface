@@ -45,11 +45,14 @@ class UmiDataset(BaseDataset):
         
         if cache_dir is None:
             # load into memory store
-            with zarr.ZipStore(dataset_path, mode='r') as zip_store:
-                replay_buffer = ReplayBuffer.copy_from_store(
-                    src_store=zip_store, 
-                    store=zarr.MemoryStore()
-                )
+            # with zarr.ZipStore(dataset_path, mode='r') as zip_store:
+            #     replay_buffer = ReplayBuffer.copy_from_store(
+            #         src_store=zip_store, 
+            #         store=zarr.MemoryStore()
+            #     )
+            replay_buffer = ReplayBuffer.copy_from_path(
+                zarr_path=dataset_path,
+            )
         else:
             # TODO: refactor into a stand alone function?
             # determine path name

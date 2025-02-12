@@ -136,13 +136,13 @@ class TimmObsEncoder(ModuleAttrMixin):
             if type == 'rgb':
                 assert image_shape is None or image_shape == shape[1:]
                 image_shape = shape[1:]
-        # if transforms is not None and not isinstance(transforms[0], torch.nn.Module):
-        #     assert transforms[0].type == 'RandomCrop'
-        #     ratio = transforms[0].ratio
-        #     transforms = [
-        #         torchvision.transforms.RandomCrop(size=int(image_shape[0] * ratio)),
-        #         torchvision.transforms.Resize(size=image_shape[0], antialias=True)
-        #     ] + transforms[1:]
+        if transforms is not None and len(transforms) > 0 and not isinstance(transforms[0], torch.nn.Module):
+            assert transforms[0].type == 'RandomCrop'
+            ratio = transforms[0].ratio
+            transforms = [
+                torchvision.transforms.RandomCrop(size=int(image_shape[0] * ratio)),
+                torchvision.transforms.Resize(size=image_shape[0], antialias=True)
+            ] + transforms[1:]
         transform = nn.Identity() if transforms is None else torch.nn.Sequential(*transforms)
 
         for key, attr in obs_shape_meta.items():
