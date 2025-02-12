@@ -12,7 +12,7 @@ import torch
 OmegaConf.register_new_resolver("eval", eval)
 
 @hydra.main(
-    config_path="../diffusion_policy/config/",
+    config_path="../diffusion_policy/config/task/dataset",
     config_name="umi_lazy_dataset",
 )
 def main(cfg: DictConfig):

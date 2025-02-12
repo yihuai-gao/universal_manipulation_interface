@@ -30,11 +30,11 @@ class UmiLazyDataset(BaseLazyDataset):
     """
 
     def __init__(self, robot_num: int, use_relative_pose: bool, down_sample_steps: int, **kwargs):
-        
+
         self.down_sample_steps: int = down_sample_steps
         kwargs['history_padding_length'] = kwargs['history_padding_length'] * down_sample_steps
         kwargs['future_padding_length'] = kwargs['future_padding_length'] * down_sample_steps
-        for meta in kwargs['source_data_meta']:
+        for meta in kwargs['source_data_meta'].values():
             meta['include_indices'] = [i * down_sample_steps for i in meta['include_indices']]
 
         super().__init__(**kwargs)
@@ -58,6 +58,23 @@ class UmiLazyDataset(BaseLazyDataset):
         self.episode_valid_indices_min: dict[int, int] = {}
         self.episode_valid_indices_max: dict[int, int] = {}  # Exclusive
 
+        if len(self.include_episode_indices) > 0:
+            print(f"Using specified episode indices: {self.include_episode_indices}. Will ignore include_episode_num.")
+            self.include_episode_num: int = len(self.include_episode_indices)
+            for episode_idx in self.include_episode_indices:
+                assert episode_idx < self.store_episode_num, f"episode_idx {episode_idx} is out of range. Max is {self.store_episode_num}."
+        else:
+            if self.include_episode_num > 0:
+                assert self.include_episode_num <= self.store_episode_num, f"include_episode_num {self.include_episode_num} is greater than the number of episodes {self.store_episode_num}."
+                self.include_episode_indices = self.rng.choice(self.store_episode_num, size=self.include_episode_num, replace=False).tolist()
+                print(f"Using {self.include_episode_num} episodes from {self.store_episode_num} episodes: {self.include_episode_indices}")
+            elif self.include_episode_num == -1:
+                self.include_episode_num = self.store_episode_num
+                self.include_episode_indices = list(range(self.include_episode_num))
+                print(f"Using all {self.include_episode_num} episodes from {self.store_episode_num}")
+            else:
+                raise ValueError(f"include_episode_num {self.include_episode_num} is invalid. Must be -1 or a positive integer.")
+
         for i, end in enumerate(self.episode_ends):
             if i == 0:
                 self.episode_starts[i] = 0
@@ -77,8 +94,8 @@ class UmiLazyDataset(BaseLazyDataset):
         self.used_episode_indices: list[int] = cast(
             list[int],
             self.rng.choice(
-                self.store_episode_num,
-                size=int(self.store_episode_num * self.used_episode_ratio),
+                self.include_episode_num,
+                size=int(self.include_episode_num * self.used_episode_ratio),
                 replace=False,
             ).tolist(),
         )
@@ -117,24 +134,20 @@ class UmiLazyDataset(BaseLazyDataset):
 
         processed_data_dict: dict[str, npt.NDArray[Any]] = {}
 
-        eef_pos_indices = self.get_source_entry_meta("robot0_eef_pos").include_indices
-        eef_rot_axis_angle_indices = self.get_source_entry_meta(
-            "robot0_eef_rot_axis_angle"
-        ).include_indices
+        eef_pos_indices = self.source_data_meta["robot0_eef_pos"].include_indices
+        eef_rot_axis_angle_indices = self.source_data_meta["robot0_eef_rot_axis_angle"].include_indices
         assert (
             eef_pos_indices == eef_rot_axis_angle_indices
         ), "eef_pos_indices and eef_rot_axis_angle_indices must be the same"
 
-        eef_pos_length = self.get_output_entry_meta("robot0_eef_pos").length
-        eef_rot_axis_angle_length = self.get_output_entry_meta(
-            "robot0_eef_rot_axis_angle"
-        ).length
-        gripper_width_length = self.get_output_entry_meta("robot0_gripper_width").length
+        eef_pos_length = self.output_data_meta["robot0_eef_pos"].length
+        eef_rot_axis_angle_length = self.output_data_meta["robot0_eef_rot_axis_angle"].length
+        gripper_width_length = self.output_data_meta["robot0_gripper_width"].length
         assert (
             eef_pos_length == eef_rot_axis_angle_length
         ), "eef_pos_length and eef_rot_axis_angle_length must be the same"
 
-        action_meta = self.get_output_entry_meta("action")
+        action_meta = self.output_data_meta["action"]
         action = np.zeros((action_meta.length, *action_meta.shape), dtype=np.float32)
 
         for i in range(self.robot_num):
@@ -182,9 +195,9 @@ class UmiLazyDataset(BaseLazyDataset):
             if f"robot{i}_demo_start_pose" in data_dict:
                 # Calculate relative poses wrt episode start
                 try:
-                    wrt_start_entry_meta = self.get_output_entry_meta(
+                    wrt_start_entry_meta = self.output_data_meta[
                         f"robot{i}_eef_rot_axis_angle_wrt_start"
-                    )
+                    ]
                     assert (
                         data_dict[f"robot{i}_demo_start_pose"].shape[0] == 1
                     ), "robot0_demo_start_pose must be (1, 6)"
@@ -233,7 +246,7 @@ class UmiLazyDataset(BaseLazyDataset):
         start_idx = self.episode_starts[episode_idx]
 
         source_data_dict: dict[str, Any] = {}
-        for entry_meta in self.source_data_meta:
+        for entry_meta in self.source_data_meta.values():
             if entry_meta.name not in self.data_store:
                 continue
             indices = [traj_idx + i for i in entry_meta.include_indices]
@@ -253,7 +266,7 @@ class UmiLazyDataset(BaseLazyDataset):
         output_data_dict["obs"] = {}
         output_data_dict["action"] = {}
 
-        for entry_meta in self.output_data_meta:
+        for entry_meta in self.output_data_meta.values():
             if entry_meta.name not in processed_data_dict:
                 continue
             processed_data = processed_data_dict[entry_meta.name]

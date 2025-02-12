@@ -3,7 +3,9 @@ _target_: diffusion_policy.dataset.umi_lazy_dataset.UmiLazyDataset
 robot_num: 1
 
 zarr_path: ???
-used_episode_ratio: 0.9
+include_episode_num: -1 # To specify how many episodes to include. -1 means using all episodes.
+include_episode_indices: [] # If not empty, will override used_episode_num
+used_episode_ratio: 0.9 # 90% of the included episodes will be used. Rest can be split into validation set
 history_padding_length: 1
 future_padding_length: 16
 starting_percentile_max: 1.0
@@ -14,80 +16,80 @@ use_relative_pose: true
 down_sample_steps: 3
 
 source_data_meta:
-  - name: camera0_rgb
+  camera0_rgb:
     # include_indices: ${eval:"ListConfig(list(range(-1, 17)))"} # 1 frames into the past, 16 frames into the future
     include_indices: [-1, 0]
     shape: [224, 224, 3]
 
-  - name: robot0_demo_start_pose
+  robot0_demo_start_pose:
     include_indices: [0]
     shape: [6]
 
-  - name: robot0_eef_pos
+  robot0_eef_pos:
     include_indices: ${eval:"ListConfig(list(range(-1, 17)))"}
     shape: [3]
 
-  - name: robot0_eef_rot_axis_angle
+  robot0_eef_rot_axis_angle:
     include_indices: ${eval:"ListConfig(list(range(-1, 17)))"}
     shape: [3]
 
-  - name: robot0_gripper_width
+  robot0_gripper_width:
     include_indices: ${eval:"ListConfig(list(range(-1, 17)))"}
     shape: [1]
 
 output_data_meta:
-  - name: camera0_rgb
+  camera0_rgb:
     data_type: image
-    length: ${task.img_obs_horizon}
+    length: 2
     normalizer: identity
-    augmentation:
-      - name: RandomCrop
-        size: 208
-      - name: Resize
-        size: 224
-        antialias: True
-      - name: ColorJitter
-        brightness: 0.3
-        contrast: 0.4
-      - name: Normalize
-        mean: [0.485, 0.456, 0.406]
-        std: [0.229, 0.224, 0.225]
+    augmentation: []
+      # - name: RandomCrop
+      #   size: 208
+      # - name: Resize
+      #   size: 224
+      #   antialias: True
+      # - name: ColorJitter
+      #   brightness: 0.3
+      #   contrast: 0.4
+      # - name: Normalize
+      #   mean: [0.485, 0.456, 0.406]
+      #   std: [0.229, 0.224, 0.225]
     shape: [3, 224, 224] # For pytorch compatibility
     usage: obs
 
-  - name: robot0_eef_pos
+  robot0_eef_pos:
     data_type: low_dim
-    length: ${task.low_dim_obs_horizon} # 16 frames into the past
+    length: 2 # 16 frames into the past
     normalizer: identity
     augmentation: []
     shape: [3]
     usage: obs
 
-  - name: robot0_eef_rot_axis_angle
+  robot0_eef_rot_axis_angle:
     data_type: low_dim
-    length: ${task.low_dim_obs_horizon} # 16 frames into the past
+    length: 2 # 16 frames into the past
     normalizer: identity
     augmentation: []
     shape: [6]
     usage: obs
 
-  - name: robot0_eef_rot_axis_angle_wrt_start
+  robot0_eef_rot_axis_angle_wrt_start:
     data_type: low_dim
-    length: ${task.low_dim_obs_horizon} # 16 frames into the past
+    length: 2 # 16 frames into the past
     normalizer: identity
     augmentation: []
     shape: [6]
     usage: obs
 
-  - name: robot0_gripper_width
+  robot0_gripper_width:
     data_type: low_dim
-    length: ${task.low_dim_obs_horizon} # 16 frames into the past
+    length: 2 # 16 frames into the past
     normalizer: identity
     augmentation: []
     shape: [1]
     usage: obs
 
-  - name: action
+  action:
     data_type: low_dim
     length: 16 # 16 frames into the future
     normalizer: identity

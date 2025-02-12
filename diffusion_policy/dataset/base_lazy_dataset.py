@@ -1,7 +1,7 @@
 import copy
 from torch.utils.data import DataLoader, Dataset
 from typing import Any, Callable, cast, Optional, Union
-from omegaconf import ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 import numpy as np
 import zarr
 import os
@@ -9,11 +9,12 @@ import torch
 import numpy.typing as npt
 import torchvision.transforms as T
 
-batch_type = dict[str, Union[dict[str, torch.Tensor], torch.Tensor]]
-
 from dataclasses import dataclass
 from typing import Any
 from torch import nn
+
+batch_type = dict[str, Union[dict[str, torch.Tensor], torch.Tensor]]
+
 
 @dataclass
 class SourceDataMeta:
@@ -92,6 +93,29 @@ class DataMeta:
             )
 
 
+def construct_data_meta(data_meta: Union[dict[str, dict[str, Any]], DictConfig]) -> dict[str, DataMeta]:
+    if isinstance(data_meta, DictConfig):
+        data_meta = cast(
+            dict[str, dict[str, Any]],
+            OmegaConf.to_container(data_meta, resolve=True)
+        )
+    data_meta_dict = {}
+    for name, entry_meta_dict in data_meta.items():
+        entry_meta_dict.update({"name": name})
+        data_meta_dict[name] = DataMeta(**entry_meta_dict)
+    return data_meta_dict
+
+def construct_source_data_meta(source_data_meta: Union[dict[str, dict[str, Any]], DictConfig]) -> dict[str, SourceDataMeta]:
+    if isinstance(source_data_meta, DictConfig):
+        source_data_meta = cast(
+            dict[str, dict[str, Any]],
+            OmegaConf.to_container(source_data_meta, resolve=True)
+        )
+    source_data_meta_dict = {}
+    for name, entry_meta_dict in source_data_meta.items():
+        entry_meta_dict.update({"name": name})
+        source_data_meta_dict[name] = SourceDataMeta(**entry_meta_dict)
+    return source_data_meta_dict
 
 class SingleFieldLinearNormalizer(nn.Module):
     def __init__(self, meta: DataMeta):
@@ -242,13 +266,13 @@ class FixedNormalizer(nn.Module):
     @torch.no_grad()
     def __init__(
         self,
-        data_meta: list[DataMeta],
+        data_meta: dict[str, DataMeta],
     ):
         super().__init__()
-        self.data_meta: list[DataMeta] = data_meta
+        self.data_meta: dict[str, DataMeta] = data_meta
         self.normalizers: nn.ModuleDict = nn.ModuleDict()
 
-        for meta in self.data_meta:
+        for meta in self.data_meta.values():
             if meta.usage not in self.normalizers:
                 self.normalizers[meta.usage] = nn.ModuleDict()
             if meta.normalizer == "identity":
@@ -262,7 +286,7 @@ class FixedNormalizer(nn.Module):
 
     @torch.no_grad()
     def fit_range_normalizer(self, data_dict: batch_type):
-        for meta in self.data_meta:
+        for meta in self.data_meta.values():
             if meta.normalizer != "range":
                 continue
 
@@ -282,7 +306,7 @@ class FixedNormalizer(nn.Module):
             dict[str, dict[str, Union[torch.Tensor, npt.NDArray[np.float32], list[float]]]],
         ],
     ):
-        for meta in self.data_meta:
+        for meta in self.data_meta.values():
             assert (
                 meta.name in state_dict[meta.usage]
             ), f"State dict for {meta.name} not found when loading normalizer"
@@ -336,19 +360,24 @@ class BaseLazyDataset(Dataset[batch_type]):
     def __init__(
         self,
         zarr_path: str,
+        include_episode_num: int,
+        include_episode_indices: list[int],
         used_episode_ratio: float,
         index_pool_size_per_episode: int,
         history_padding_length: int,
         future_padding_length: int,
         seed: int,
-        source_data_meta: Union[list[dict[str, Any]], ListConfig],
-        output_data_meta: Union[list[dict[str, Any]], ListConfig],
+        source_data_meta: Union[dict[str, dict[str, Any]], DictConfig],
+        output_data_meta: Union[dict[str, dict[str, Any]], DictConfig],
         dataloader_cfg: dict[str, Any],
         starting_percentile_max: float,
         starting_percentile_min: float,
     ):
 
         self.zarr_path: str = zarr_path
+
+        self.include_episode_num: int = include_episode_num
+        self.include_episode_indices: list[int] = include_episode_indices
         self.used_episode_ratio: float = used_episode_ratio
         self.index_pool_size_per_episode: int = index_pool_size_per_episode
         self.history_padding_length: int = history_padding_length
@@ -366,32 +395,18 @@ class BaseLazyDataset(Dataset[batch_type]):
         self.zarr_store: zarr.Group = zarr_store
 
         assert len(source_data_meta) > 0, "source_data_meta is empty."
-        if isinstance(source_data_meta, ListConfig):
-            source_data_meta = cast(
-                list[dict[str, Any]],
-                OmegaConf.to_container(source_data_meta, resolve=True),
-            )
-        self.source_data_meta: list[SourceDataMeta] = [
-            SourceDataMeta(**entry_meta_dict) for entry_meta_dict in source_data_meta
-        ]
+        self.source_data_meta: dict[str, SourceDataMeta] = construct_source_data_meta(source_data_meta)
 
         assert len(output_data_meta) > 0, "output_data_meta is empty."
-        if isinstance(output_data_meta, ListConfig):
-            output_data_meta = cast(
-                list[dict[str, Any]],
-                OmegaConf.to_container(output_data_meta, resolve=True),
-            )
-        self.output_data_meta: list[DataMeta] = [
-            DataMeta(**entry_meta_dict) for entry_meta_dict in output_data_meta
-        ]
+        self.output_data_meta: dict[str, DataMeta] = construct_data_meta(output_data_meta)
 
         self.max_history_length: int = max(
             0,
-            -min(entry_meta.include_indices[0] for entry_meta in self.source_data_meta),
+            -min(entry_meta.include_indices[0] for entry_meta in self.source_data_meta.values()),
         )
         self.max_future_length: int = max(
             0,
-            max(entry_meta.include_indices[-1] for entry_meta in self.source_data_meta),
+            max(entry_meta.include_indices[-1] for entry_meta in self.source_data_meta.values()),
         )
         self.history_padding_length: int = history_padding_length
         self.future_padding_length: int = future_padding_length
@@ -465,6 +480,9 @@ class BaseLazyDataset(Dataset[batch_type]):
         remaining_ratio: float = 1.0,
         other_used_episode_indices: Optional[list[int]] = None,
     ):
+        """
+        Split unused episodes from the included episodes.
+        """
         print(
             f"Splitting unused data with remaining ratio {remaining_ratio} and other used episode ids {other_used_episode_indices}."
         )
@@ -474,7 +492,7 @@ class BaseLazyDataset(Dataset[batch_type]):
             other_used_episode_indices = []
         unused_episode_indices = [
             episode_idx
-            for episode_idx in range(self.store_episode_num)
+            for episode_idx in self.include_episode_indices
             if episode_idx not in self.used_episode_indices
             and episode_idx not in other_used_episode_indices
         ]
@@ -486,22 +504,11 @@ class BaseLazyDataset(Dataset[batch_type]):
                 replace=False,
             ).tolist(),
         )
+        unused_dataset.used_episode_ratio = len(unused_dataset.used_episode_indices) / len(unused_dataset.include_episode_indices)
         unused_dataset._check_data_validity()
         unused_dataset._create_index_pool()
         return unused_dataset
-
-    def get_output_entry_meta(self, name: str) -> DataMeta:
-        for entry_meta in self.output_data_meta:
-            if entry_meta.name == name:
-                return entry_meta
-        raise ValueError(f"Entry {name} not found in data_meta.")
-
-    def get_source_entry_meta(self, name: str) -> SourceDataMeta:
-        for entry_meta in self.source_data_meta:
-            if entry_meta.name == name:
-                return entry_meta
-        raise ValueError(f"Entry {name} not found in source_data_meta.")
-
+    
     def get_dataloader(self):
         return DataLoader(self, **self.dataloader_cfg)
 
@@ -513,7 +520,7 @@ class BaseLazyDataset(Dataset[batch_type]):
 
         range_normalize_entries = [
             entry_meta.name
-            for entry_meta in self.output_data_meta
+            for entry_meta in self.output_data_meta.values()
             if entry_meta.normalizer == "range"
         ]
 
@@ -543,7 +550,7 @@ class BaseLazyDataset(Dataset[batch_type]):
             return data.float()
         
     def _register_transforms(self):
-        for entry_meta in self.output_data_meta:
+        for entry_meta in self.output_data_meta.values():
             self.transforms[entry_meta.name] = []
             for aug_cfg in entry_meta.augmentation:
                 aug_name = aug_cfg["name"]
