@@ -14,8 +14,8 @@ OmegaConf.register_new_resolver("eval", eval)
 
 @hydra.main(
     config_path="../diffusion_policy/config/task/dataset",
-    # config_name="umi_lazy_dataset",
-    config_name="umi_multi_dataset"
+    config_name="umi_lazy_dataset",
+    # config_name="umi_multi_dataset"
 )
 def main(cfg: DictConfig):
     
@@ -46,10 +46,13 @@ def main(cfg: DictConfig):
     #     # print(train_dataset.normalizer.unnormalize(train_dataset[i])["output"]["action_0_tcp_xyz_wxyz"].numpy())
     #     print(train_dataset[i]["obs"]["camera0_rgb"].shape)
 
-    obs_data = train_dataset[0]["obs"]
-    for key, value in obs_data.items():
-        print(key, value.shape)
-    print("action", train_dataset[0]["action"].shape)
+    # obs_data = train_dataset[0]["obs"]
+    # for key, value in obs_data.items():
+    #     print(key, value.shape)
+    # print("action", train_dataset[0]["action"].shape)
+    for i in range(10000):
+        print(train_dataset[i]["obs"]["camera0_rgb"].shape)
+        # time.sleep(1)
 
     
 

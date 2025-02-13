@@ -62,14 +62,14 @@ policy:
     # it only works for resnet. 32 (7x7) or 16 (14x14)
     downsample_ratio: 32
 
-    transforms: 
-      - type: RandomCrop
-        ratio: 0.95
-      - _target_: torchvision.transforms.ColorJitter
-        brightness: 0.3
-        contrast: 0.4
-        saturation: 0.5
-        hue: 0.08
+    transforms: []
+      # - type: RandomCrop
+      #   ratio: 0.95
+      # - _target_: torchvision.transforms.ColorJitter
+      #   brightness: 0.3
+      #   contrast: 0.4
+      #   saturation: 0.5
+      #   hue: 0.08
       # RandomRotation is not compatible with BF16
       # - _target_: torchvision.transforms.RandomRotation
       #   degrees:

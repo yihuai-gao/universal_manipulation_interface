@@ -7,14 +7,14 @@ import zarr
 import os
 import torch
 import numpy.typing as npt
-import torchvision.transforms as T
+import torchvision.transforms.v2 as T
 
 from dataclasses import dataclass
 from typing import Any
 from torch import nn
 
 batch_type = dict[str, Union[dict[str, torch.Tensor], torch.Tensor]]
-
+torch.set_num_threads(1)
 
 @dataclass
 class SourceDataMeta:
@@ -460,7 +460,7 @@ class BaseLazyDataset(Dataset[batch_type]):
         Each item contains a tuple of (episode_idx, index), where index means the 0 index of this trajectory in an episode.
         """
 
-        self.transforms: dict[str, list[Callable[[torch.Tensor], torch.Tensor]]] = {}
+        self.transforms: dict[str, nn.Sequential] = {}
         self._register_transforms()
 
     def _check_data_validity(self):
@@ -607,23 +607,37 @@ class BaseLazyDataset(Dataset[batch_type]):
         return self.normalizer
 
     def process_image_data(
-        self, data: Union[torch.Tensor, npt.NDArray[Any]]
-    ) -> torch.Tensor:
-        if isinstance(data, np.ndarray):
-            data = torch.from_numpy(data)
+        self, data: npt.NDArray[Any]
+    ) -> npt.NDArray[np.float32]:
         if (
             data.shape[-1] <= 4
         ):  # (..., H, W, C) where the color dimension is usually a small number (1 (grayscale), 3 (RGB), or 4 (RGBD))
             dims = len(data.shape)
-            data = data.permute((*range(dims - 3), -1, -3, -2))  # (..., C, H, W)
-        if data.dtype == torch.uint8:
-            return data.float() / 255.0
-        else:
-            return data.float()
+            data = data.transpose((*range(dims - 3), -1, -3, -2))  # (..., C, H, W)
+        if data.dtype == np.uint8:
+            return (data / 255.0).astype(np.float32)
+        return data.astype(np.float32)
+
+
+    # def process_image_data(
+    #     self, data: Union[torch.Tensor, npt.NDArray[Any]]
+    # ) -> torch.Tensor:
+    #     if isinstance(data, np.ndarray):
+    #         data = torch.from_numpy(data)
+    #     if (
+    #         data.shape[-1] <= 4
+    #     ):  # (..., H, W, C) where the color dimension is usually a small number (1 (grayscale), 3 (RGB), or 4 (RGBD))
+    #         dims = len(data.shape)
+    #         data = data.permute((*range(dims - 3), -1, -3, -2))  # (..., C, H, W)
+    #     if data.dtype == torch.uint8:
+    #         return data.float() / 255.0
+    #     else:
+    #         return data.float()
+
 
     def _register_transforms(self):
         for entry_meta in self.output_data_meta.values():
-            self.transforms[entry_meta.name] = []
+            transforms_list = []
             for aug_cfg in entry_meta.augmentation:
                 aug_name = aug_cfg["name"]
                 if aug_name not in T.__dict__:
@@ -632,7 +646,8 @@ class BaseLazyDataset(Dataset[batch_type]):
                     )
                 aug_cfg.pop("name")
                 transform_cls = T.__dict__[aug_name]
-                self.transforms[entry_meta.name].append(transform_cls(**aug_cfg))
+                transforms_list.append(transform_cls(**aug_cfg))
+            self.transforms[entry_meta.name] = nn.Sequential(*transforms_list)
 
     def augment_data(self, data_name: str, data: torch.Tensor) -> torch.Tensor:
         for transform in self.transforms[data_name]:

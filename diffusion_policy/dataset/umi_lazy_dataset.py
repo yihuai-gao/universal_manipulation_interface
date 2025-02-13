@@ -13,7 +13,6 @@ from diffusion_policy.codecs.imagecodecs_numcodecs import register_codecs, JpegX
 
 register_codecs()
 
-
 class UmiLazyDataset(BaseLazyDataset):
     """
     Dataset loader for the official UMI dataset.
@@ -56,6 +55,7 @@ class UmiLazyDataset(BaseLazyDataset):
         ), f"robot_num must be an integer greater than 0, but got {robot_num}."
         self.robot_num: int = robot_num
         self.data_store: zarr.Group = data_store
+        self.data_store_keys: list[str] = list(data_store.keys())
 
         self.episode_ends: npt.NDArray[np.int64] = np.array(
             self.zarr_store["meta"]["episode_ends"]
@@ -96,6 +96,7 @@ class UmiLazyDataset(BaseLazyDataset):
         # No need to check data validity for UMI dataset
         pass
 
+    @profile
     def _process_source_data(
         self, data_dict: dict[str, npt.NDArray[Any]]
     ) -> dict[str, npt.NDArray[Any]]:
@@ -223,6 +224,7 @@ class UmiLazyDataset(BaseLazyDataset):
 
         return processed_data_dict
 
+    @profile
     def __getitem__(self, idx: int):
         """
         output_data_dict:
@@ -240,7 +242,7 @@ class UmiLazyDataset(BaseLazyDataset):
 
         source_data_dict: dict[str, Any] = {}
         for entry_meta in self.source_data_meta.values():
-            if entry_meta.name not in self.data_store:
+            if entry_meta.name not in self.data_store_keys:
                 continue
             indices = [traj_idx + i for i in entry_meta.include_indices]
             # Crop the indices to the valid range. Will introduce padding if the indices are out of range.
@@ -249,9 +251,15 @@ class UmiLazyDataset(BaseLazyDataset):
                 for i in indices
             ]
             global_indices = [start_idx + i for i in indices]
-            source_data_dict[entry_meta.name] = np.array(
-                self.data_store[entry_meta.name][global_indices]
-            )
+
+            if entry_meta.name == "camera0_rgb": # Debug: get the data retreival time for image specifically
+                source_data_dict[entry_meta.name] = np.array(
+                    self.data_store[entry_meta.name][global_indices]
+                )
+            else:
+                source_data_dict[entry_meta.name] = np.array(
+                    self.data_store[entry_meta.name][global_indices]
+                )
 
         processed_data_dict = self._process_source_data(source_data_dict)
 
@@ -268,10 +276,7 @@ class UmiLazyDataset(BaseLazyDataset):
                     processed_data = self.process_image_data(
                         processed_data
                     )  # -> (..., C, H, W), float32 (0~1)
-                else:
-                    processed_data = torch.from_numpy(processed_data)
-                    if processed_data.dtype == torch.float64:
-                        processed_data = processed_data.float()
+                processed_data = torch.from_numpy(processed_data.astype(np.float32))
             assert processed_data.shape == (
                 entry_meta.length,
                 *entry_meta.shape,

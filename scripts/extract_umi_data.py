@@ -17,6 +17,7 @@ def extract_data(dataset_name: str, data_dir: str, output_dir: str):
 def clean_all_data(output_dir: str):
     subprocess.run([f"rm -rf {output_dir}/*.zarr"], cwd=output_dir, shell=True, check=True)
 
+
 @click.command()
 @click.argument("datasets", type=str, required=True)
 @click.option("--data_dir", type=str, default="/scratch/m000073/uva/umi_data/lz4")

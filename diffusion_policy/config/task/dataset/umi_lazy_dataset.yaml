@@ -4,7 +4,7 @@ robot_num: 1
 
 zarr_path: ???
 name: ""
-include_episode_num: 100 # To specify how many episodes to include. -1 means using all episodes.
+include_episode_num: -1 # To specify how many episodes to include. -1 means using all episodes.
 include_episode_indices: [] # If not empty, will override used_episode_num
 used_episode_ratio: 0.9 # 90% of the included episodes will be used. Rest can be split into validation set
 history_padding_length: 1
@@ -43,18 +43,18 @@ output_data_meta:
     data_type: image
     length: 2
     normalizer: identity
-    augmentation: []
-      # - name: RandomCrop
-      #   size: 208
-      # - name: Resize
-      #   size: 224
-      #   antialias: True
-      # - name: ColorJitter
-      #   brightness: 0.3
-      #   contrast: 0.4
-      # - name: Normalize
-      #   mean: [0.485, 0.456, 0.406]
-      #   std: [0.229, 0.224, 0.225]
+    augmentation: 
+      - name: RandomCrop
+        size: 208
+      - name: Resize
+        size: 224
+        antialias: True
+      - name: ColorJitter
+        brightness: 0.3
+        contrast: 0.4
+      - name: Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
     shape: [3, 224, 224] # For pytorch compatibility
     usage: obs
 
