@@ -7,7 +7,7 @@ import zarr
 import os
 import torch
 import numpy.typing as npt
-import torchvision.transforms.v2 as T
+import kornia.augmentation as K
 
 from dataclasses import dataclass
 from typing import Any
@@ -460,7 +460,7 @@ class BaseLazyDataset(Dataset[batch_type]):
         Each item contains a tuple of (episode_idx, index), where index means the 0 index of this trajectory in an episode.
         """
 
-        self.transforms: dict[str, nn.Sequential] = {}
+        self.transforms: dict[str, K.AugmentationSequential] = {}
         self._register_transforms()
 
     def _check_data_validity(self):
@@ -640,19 +640,21 @@ class BaseLazyDataset(Dataset[batch_type]):
             transforms_list = []
             for aug_cfg in entry_meta.augmentation:
                 aug_name = aug_cfg["name"]
-                if aug_name not in T.__dict__:
+                if aug_name not in K.__dict__:
                     raise ValueError(
-                        f"Augmentation {aug_name} not found in torchvision.transforms. Please implement your own augmentation method."
+                        f"Augmentation {aug_name} not found in kornia.augmentation. Please implement your own augmentation method."
                     )
                 aug_cfg.pop("name")
-                transform_cls = T.__dict__[aug_name]
+                transform_cls = K.__dict__[aug_name]
                 transforms_list.append(transform_cls(**aug_cfg))
-            self.transforms[entry_meta.name] = nn.Sequential(*transforms_list)
+            if len(transforms_list) > 0:
+                self.transforms[entry_meta.name] = K.AugmentationSequential(*transforms_list, same_on_batch=True)
 
     def augment_data(self, data_name: str, data: torch.Tensor) -> torch.Tensor:
-        for transform in self.transforms[data_name]:
-            data = transform(data)
-        return data
+        if data_name not in self.transforms:
+            return data
+        return self.transforms[data_name](data)
+
 
     def __len__(self) -> int:
         return len(self.index_pool)

@@ -45,16 +45,31 @@ output_data_meta:
     normalizer: identity
     augmentation: 
       - name: RandomCrop
-        size: 208
+        size: [208, 208]
+        p: 0.5
       - name: Resize
-        size: 224
+        size: [224, 224]
         antialias: True
       - name: ColorJitter
         brightness: 0.3
         contrast: 0.4
-      - name: Normalize
-        mean: [0.485, 0.456, 0.406]
-        std: [0.229, 0.224, 0.225]
+        saturation: 0.5
+        hue: 0.08
+        p: 0.8
+      - name: RandomSharpness
+        sharpness: 2
+        p: 0.5
+      - name: RandomAutoContrast
+        p: 0.5
+      - name: RandomGrayscale
+        p: 0.2
+      - name: RandomGaussianBlur
+        kernel_size: [5, 5]
+        sigma: [0.1, 2.0]
+        p: 0.5
+      # - name: Normalize
+      #   mean: [0.485, 0.456, 0.406]
+      #   std: [0.229, 0.224, 0.225]
     shape: [3, 224, 224] # For pytorch compatibility
     usage: obs
 

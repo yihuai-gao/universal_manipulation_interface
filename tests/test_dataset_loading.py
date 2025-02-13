@@ -9,7 +9,7 @@ from diffusion_policy.dataset.umi_multi_dataset import UmiMultiDataset
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import torch
-
+import cv2
 OmegaConf.register_new_resolver("eval", eval)
 
 @hydra.main(
@@ -52,6 +52,15 @@ def main(cfg: DictConfig):
     # print("action", train_dataset[0]["action"].shape)
     for i in range(10000):
         print(train_dataset[i]["obs"]["camera0_rgb"].shape)
+        
+        
+        # camera0_rgb = train_dataset[i]["obs"]["camera0_rgb"]
+        # concat_img = torch.cat([camera0_rgb[0], camera0_rgb[1]], dim=2)
+        # img = concat_img.numpy().transpose(1, 2, 0)*255.0
+        # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR).astype(np.uint8)
+        # print(img.shape)
+        # cv2.imwrite(f"/scratch/m000073/yihuai/robotics/repositories/policies/imitation-learning-policies/prior_works/universal_manipulation_interface/data/test/test_dataset_loading_{i}.png", img)
+        # cv2.waitKey(0)
         # time.sleep(1)
 
     

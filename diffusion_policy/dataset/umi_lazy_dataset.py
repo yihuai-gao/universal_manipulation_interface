@@ -96,7 +96,7 @@ class UmiLazyDataset(BaseLazyDataset):
         # No need to check data validity for UMI dataset
         pass
 
-    @profile
+    # @profile
     def _process_source_data(
         self, data_dict: dict[str, npt.NDArray[Any]]
     ) -> dict[str, npt.NDArray[Any]]:
@@ -224,7 +224,7 @@ class UmiLazyDataset(BaseLazyDataset):
 
         return processed_data_dict
 
-    @profile
+    # @profile
     def __getitem__(self, idx: int):
         """
         output_data_dict:
@@ -282,8 +282,7 @@ class UmiLazyDataset(BaseLazyDataset):
                 *entry_meta.shape,
             ), f"entry_meta: {entry_meta.name}, processed_data.shape: {processed_data.shape}, entry_meta.length: {entry_meta.length}, entry_meta.shape: {entry_meta.shape}"
 
-            processed_data = self.augment_data(entry_meta.name, processed_data)
-            output_data_dict[entry_meta.usage][entry_meta.name] = processed_data
+            output_data_dict[entry_meta.usage][entry_meta.name] = self.augment_data(entry_meta.name, processed_data)
 
         if self.normalizer is not None:
             output_data_dict = self.normalizer.normalize(output_data_dict)

@@ -8,6 +8,7 @@ name: train_diffusion_unet_timm
 _target_: diffusion_policy.workspace.train_diffusion_unet_image_workspace.TrainDiffusionUnetImageWorkspace
 
 task_name: ${task.name}
+run_name: ""
 shape_meta: ${task.shape_meta}
 exp_name: "default"
 
@@ -117,15 +118,15 @@ ema:
   max_value: 0.9999
 
 dataloader:
-  batch_size: 64
-  num_workers: 16
+  batch_size: 96
+  num_workers: 12
   shuffle: True
   pin_memory: True
   persistent_workers: True
 
 val_dataloader:
-  batch_size: 64
-  num_workers: 16
+  batch_size: 96
+  num_workers: 12
   shuffle: False
   pin_memory: True
   persistent_workers: True
@@ -161,7 +162,7 @@ training:
   # optimization
   lr_scheduler: cosine
   lr_warmup_steps: 2000
-  num_epochs: 120
+  num_epochs: 121
   gradient_accumulate_every: 1
   # EMA destroys performance when used with BatchNorm
   # replace BatchNorm with GroupNorm.
@@ -183,7 +184,7 @@ logging:
   project: umi
   resume: False
   mode: online
-  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}_${run_name}
   tags: ["${name}", "${task_name}", "${exp_name}"]
   id: null
   group: null
@@ -198,14 +199,14 @@ checkpoint:
   save_last_snapshot: False
 
 multi_run:
-  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
-  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}_${run_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}_${run_name}
 
 hydra:
   job:
     override_dirname: ${name}
   run:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}_${run_name}
   sweep:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}_${run_name}
     subdir: ${hydra.job.num}

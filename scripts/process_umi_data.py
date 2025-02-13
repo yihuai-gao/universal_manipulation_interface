@@ -4,7 +4,11 @@ import subprocess
 import time
 import multiprocessing as mp
 from typing import cast
+import imagecodecs
+import numcodecs
 import zarr
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from scripts.extract_umi_data import compress_data, extract_data
 
 PROJECT_NAME = "uva"
 
@@ -117,7 +121,7 @@ def process_dataset(dataset_name: str, dataset_url: str, data_dir: str) -> None:
 def copy_chunk(source_data, data_array, start, end):
     data_array[start:end] = source_data[start:end]
 
-def remove_zarr_codec(dataset_name: str, data_dir: str) -> None:
+def convert_zarr_codec(dataset_name: str, data_dir: str) -> None:
     # This function has to be done in the umi conda environment
     import sys
     import os
@@ -125,9 +129,9 @@ def remove_zarr_codec(dataset_name: str, data_dir: str) -> None:
     from diffusion_policy.codecs.imagecodecs_numcodecs import register_codecs, JpegXl
     register_codecs()
 
-    source_dir = f"{data_dir}/{dataset_name}.zarr"
-    os.makedirs(f"{data_dir}/lz4", exist_ok=True)
-    target_dir = f"{data_dir}/lz4/{dataset_name}.zarr"
+    source_dir = f"{data_dir}/zarr/jpegxl/{dataset_name}.zarr"
+    os.makedirs(f"{data_dir}/zarr/lz4", exist_ok=True)
+    target_dir = f"{data_dir}/zarr/lz4/{dataset_name}.zarr"
 
     source_group = zarr.open(source_dir, mode="r")
     assert isinstance(source_group, zarr.Group)
@@ -151,27 +155,35 @@ def remove_zarr_codec(dataset_name: str, data_dir: str) -> None:
         print(f"key: {key}, {source_data.shape=}, {source_data.dtype=}, {source_data.compressor=}")
         if source_data.compressor is not None:
             
-            chunk_size = (1, 224, 224, 3)
+            chunk_size = (10, 224, 224, 3)
             # Parallelize the copying process
-            data_array = target_data_group.create_dataset(key, shape=source_data.shape, chunks=chunk_size, dtype=source_data.dtype, compression="lz4")
+            # compressor = numcodecs.LZ4(acceleration=1)
+            # compressor = imagecodecs.JPEGXL()
+            data_array = target_data_group.create_dataset(key, shape=source_data.shape, chunks=chunk_size, dtype=source_data.dtype)
             chunk_size = 1000  # Adjust this based on your data size and system capabilities
             num_chunks = (source_data.shape[0] + chunk_size - 1) // chunk_size
             with mp.Pool(mp.cpu_count() - 4) as pool:
                 pool.starmap(copy_chunk, [(source_data, data_array, i * chunk_size, min((i + 1) * chunk_size, source_data.shape[0])) for i in range(num_chunks)])
 
         else:
-            data_array = target_data_group.create_dataset(key, shape=source_data.shape, dtype=source_data.dtype, compression=None)
+            chunk_size = (100, *source_data.shape[1:])
+            data_array = target_data_group.create_dataset(key, shape=source_data.shape, chunks=chunk_size, dtype=source_data.dtype, compression=None)
             data_array[:] = source_data[:]
 
 
 
 if __name__ == "__main__":
     # Download the data
-    # data_dir = "/scratch/m000073/uva/umi_data"
+    data_dir = "/scratch/m000073/uva/umi_data"
     # num_processes = mp.cpu_count()
     # with mp.Pool(num_processes) as pool:
     #     pool.starmap(process_dataset, [(dataset_name, url, data_dir) for dataset_name, url in DATASETS.items()])
 
     shm_data_dir = f"/dev/shm/{PROJECT_NAME}/umi_data"
-    # remove_zarr_codec("cup_arrangement_1", f"{shm_data_dir}")
-    remove_zarr_codec("cup_arrangement_1", f"{shm_data_dir}")
+    # convert_zarr_codec("cup_arrangement_1", f"{shm_data_dir}")
+    convert_datasets = ["cup_arrangement_1"]
+    for dataset_name in convert_datasets:
+        extract_data(dataset_name, f"{data_dir}/lz4_jpegxl", f"{shm_data_dir}/zarr/jpegxl")
+        convert_zarr_codec(dataset_name, f"{shm_data_dir}")
+        compress_data(dataset_name, f"{shm_data_dir}/zarr/lz4", f"{data_dir}/lz4")
+        
