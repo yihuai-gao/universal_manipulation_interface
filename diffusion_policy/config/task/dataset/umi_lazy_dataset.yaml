@@ -3,7 +3,8 @@ _target_: diffusion_policy.dataset.umi_lazy_dataset.UmiLazyDataset
 robot_num: 1
 
 zarr_path: ???
-include_episode_num: -1 # To specify how many episodes to include. -1 means using all episodes.
+name: ""
+include_episode_num: 100 # To specify how many episodes to include. -1 means using all episodes.
 include_episode_indices: [] # If not empty, will override used_episode_num
 used_episode_ratio: 0.9 # 90% of the included episodes will be used. Rest can be split into validation set
 history_padding_length: 1

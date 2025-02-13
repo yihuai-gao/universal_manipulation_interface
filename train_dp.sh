@@ -1,13 +1,13 @@
 #!/bin/sh
-#SBATCH --job-name=train_dp_cup_new_bf16
+#SBATCH --job-name=train_dp_3_tasks
 #SBATCH -p preempt
 #SBATCH --nodes=1
 #SBATCH -A marlowe-m000073
 #SBATCH -G 8
-#SBATCH --cpus-per-task=112
+#SBATCH --cpus-per-task=96
 #SBATCH --mem=1024G
-#SBATCH --error=outputs/new_bf16/train_dp.err
-#SBATCH --output=outputs/new_bf16/train_dp.out
+#SBATCH --error=outputs/3_tasks/train_dp.err
+#SBATCH --output=outputs/3_tasks/train_dp.out
 
 working_dir=/scratch/m000073/yihuai/robotics/repositories/policies/imitation-learning-policies/prior_works/universal_manipulation_interface
 
@@ -23,6 +23,8 @@ python_path=$(conda info --base)/envs/umi/bin/python
 accelerate_path=$(conda info --base)/envs/umi/bin/accelerate
 
 shm_dir=/dev/shm/uva/umi_data
+
+local_dataset_dir=/scratch/m000073/uva/umi_data
 
 # clean_shm() {
 #     echo "Cleaning shared memory..."
@@ -47,12 +49,18 @@ which python
 
 set -e
 
-$python_path scripts/extract_umi_data.py cup_arrangement_0 --data_dir /scratch/m000073/uva/umi_data/zarr
-echo "Data extracted"
+# $python_path scripts/extract_umi_data.py cup_arrangement_0 --data_dir /scratch/m000073/uva/umi_data/lz4
+# echo "Data extracted"
+
+# For multi-dataset
+command="$accelerate_path launch --num_processes 8 train.py --config-name=train_diffusion_unet_timm_umi_workspace_new_dataloader task/dataset=umi_multi_dataset task.dataset.dataset_root_dir=$local_dataset_dir/zarr task.dataset.used_episode_indices_file=$local_dataset_dir/meta/sampled_500_index_3_datasets.json" 
+
 # For the new lazy dataset
-command="$accelerate_path launch --num_processes 8 train.py --config-name=train_diffusion_unet_timm_umi_workspace_new_dataloader task.dataset.zarr_path=/dev/shm/uva/umi_data/cup_arrangement_0.zarr"
+# command="$accelerate_path launch --num_processes 8 train.py --config-name=train_diffusion_unet_timm_umi_workspace_new_dataloader task.dataset.zarr_path=/dev/shm/uva/umi_data/cup_arrangement_0.zarr"
 
 # For the original dataset
 # command="$accelerate_path launch --num_processes 4 train.py --config-name=train_diffusion_unet_timm_umi_workspace task.dataset_path=$shm_dir/cup_arrangement_0.zarr"
+echo "Running command:"
 echo $command
+echo "--------------------------------"
 exec $command

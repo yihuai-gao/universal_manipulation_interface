@@ -10,6 +10,7 @@ from diffusion_policy.dataset.base_lazy_dataset import BaseLazyDataset
 from umi.common.pose_util import pose_to_mat, mat_to_pose10d
 from diffusion_policy.common.pose_repr_util import convert_pose_mat_rep
 from diffusion_policy.codecs.imagecodecs_numcodecs import register_codecs, JpegXl
+
 register_codecs()
 
 
@@ -29,13 +30,21 @@ class UmiLazyDataset(BaseLazyDataset):
         └── episode_ends (5,) int64
     """
 
-    def __init__(self, robot_num: int, use_relative_pose: bool, down_sample_steps: int, **kwargs):
+    def __init__(
+        self, robot_num: int, use_relative_pose: bool, down_sample_steps: int, **kwargs
+    ):
 
         self.down_sample_steps: int = down_sample_steps
-        kwargs['history_padding_length'] = kwargs['history_padding_length'] * down_sample_steps
-        kwargs['future_padding_length'] = kwargs['future_padding_length'] * down_sample_steps
-        for meta in kwargs['source_data_meta'].values():
-            meta['include_indices'] = [i * down_sample_steps for i in meta['include_indices']]
+        kwargs["history_padding_length"] = (
+            kwargs["history_padding_length"] * down_sample_steps
+        )
+        kwargs["future_padding_length"] = (
+            kwargs["future_padding_length"] * down_sample_steps
+        )
+        for meta in kwargs["source_data_meta"].values():
+            meta["include_indices"] = [
+                i * down_sample_steps for i in meta["include_indices"]
+            ]
 
         super().__init__(**kwargs)
 
@@ -53,27 +62,12 @@ class UmiLazyDataset(BaseLazyDataset):
         )
         self.store_episode_num: int = len(self.episode_ends)
 
+        self._update_episode_indices()
+
         self.episode_starts: npt.NDArray[np.int64] = np.zeros_like(self.episode_ends)
         self.episode_frame_nums: dict[int, int] = {}
         self.episode_valid_indices_min: dict[int, int] = {}
         self.episode_valid_indices_max: dict[int, int] = {}  # Exclusive
-
-        if len(self.include_episode_indices) > 0:
-            print(f"Using specified episode indices: {self.include_episode_indices}. Will ignore include_episode_num.")
-            self.include_episode_num: int = len(self.include_episode_indices)
-            for episode_idx in self.include_episode_indices:
-                assert episode_idx < self.store_episode_num, f"episode_idx {episode_idx} is out of range. Max is {self.store_episode_num}."
-        else:
-            if self.include_episode_num > 0:
-                assert self.include_episode_num <= self.store_episode_num, f"include_episode_num {self.include_episode_num} is greater than the number of episodes {self.store_episode_num}."
-                self.include_episode_indices = self.rng.choice(self.store_episode_num, size=self.include_episode_num, replace=False).tolist()
-                print(f"Using {self.include_episode_num} episodes from {self.store_episode_num} episodes: {self.include_episode_indices}")
-            elif self.include_episode_num == -1:
-                self.include_episode_num = self.store_episode_num
-                self.include_episode_indices = list(range(self.include_episode_num))
-                print(f"Using all {self.include_episode_num} episodes from {self.store_episode_num}")
-            else:
-                raise ValueError(f"include_episode_num {self.include_episode_num} is invalid. Must be -1 or a positive integer.")
 
         for i, end in enumerate(self.episode_ends):
             if i == 0:
@@ -90,19 +84,13 @@ class UmiLazyDataset(BaseLazyDataset):
                 + self.future_padding_length
                 - self.max_future_length
             )
-
-        self.used_episode_indices: list[int] = cast(
-            list[int],
-            self.rng.choice(
-                self.include_episode_num,
-                size=int(self.include_episode_num * self.used_episode_ratio),
-                replace=False,
-            ).tolist(),
-        )
-
         self.use_relative_pose: bool = use_relative_pose
 
         self._create_index_pool()
+
+        print(
+            f"Dataset: {self.name}, store_episode_num: {self.store_episode_num}, include_episode_num: {self.include_episode_num}, used_episode_num: {self.used_episode_num}"
+        )
 
     def _check_data_validity(self):
         # No need to check data validity for UMI dataset
@@ -135,13 +123,17 @@ class UmiLazyDataset(BaseLazyDataset):
         processed_data_dict: dict[str, npt.NDArray[Any]] = {}
 
         eef_pos_indices = self.source_data_meta["robot0_eef_pos"].include_indices
-        eef_rot_axis_angle_indices = self.source_data_meta["robot0_eef_rot_axis_angle"].include_indices
+        eef_rot_axis_angle_indices = self.source_data_meta[
+            "robot0_eef_rot_axis_angle"
+        ].include_indices
         assert (
             eef_pos_indices == eef_rot_axis_angle_indices
         ), "eef_pos_indices and eef_rot_axis_angle_indices must be the same"
 
         eef_pos_length = self.output_data_meta["robot0_eef_pos"].length
-        eef_rot_axis_angle_length = self.output_data_meta["robot0_eef_rot_axis_angle"].length
+        eef_rot_axis_angle_length = self.output_data_meta[
+            "robot0_eef_rot_axis_angle"
+        ].length
         gripper_width_length = self.output_data_meta["robot0_gripper_width"].length
         assert (
             eef_pos_length == eef_rot_axis_angle_length
@@ -188,7 +180,7 @@ class UmiLazyDataset(BaseLazyDataset):
             ]
 
             action[:, i * 10 : i * 10 + 9] = pose[-action_meta.length :]
-            action[:, i * 10 + 9: (i+1) * 10] = data_dict[f"robot{i}_gripper_width"][
+            action[:, i * 10 + 9 : (i + 1) * 10] = data_dict[f"robot{i}_gripper_width"][
                 -action_meta.length :
             ]
 
@@ -206,7 +198,8 @@ class UmiLazyDataset(BaseLazyDataset):
                         f"robot{i}_demo_start_pose"
                     ][0]
                     start_pose += self.rng.normal(
-                        scale=[0.05, 0.05, 0.05, 0.05, 0.05, 0.05], size=start_pose.shape
+                        scale=[0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+                        size=start_pose.shape,
                     )
                     start_pose_mat = pose_to_mat(start_pose)
                     rel_pose_mat = convert_pose_mat_rep(
@@ -290,8 +283,7 @@ class UmiLazyDataset(BaseLazyDataset):
         if self.normalizer is not None:
             output_data_dict = self.normalizer.normalize(output_data_dict)
 
-
         # HACK: action is directly stored:
         output_data_dict["action"] = output_data_dict["action"]["action"]
-        
+
         return output_data_dict

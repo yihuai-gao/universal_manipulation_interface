@@ -4,7 +4,8 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(ROOT_DIR)
 
-from diffusion_policy.dataset.umi_lazy_dataset import UmiLazyDataset
+# from diffusion_policy.dataset.umi_lazy_dataset import UmiLazyDataset
+from diffusion_policy.dataset.umi_multi_dataset import UmiMultiDataset
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import torch
@@ -13,13 +14,15 @@ OmegaConf.register_new_resolver("eval", eval)
 
 @hydra.main(
     config_path="../diffusion_policy/config/task/dataset",
-    config_name="umi_lazy_dataset",
+    # config_name="umi_lazy_dataset",
+    config_name="umi_multi_dataset"
 )
 def main(cfg: DictConfig):
     
     
     instantiated_cfg = hydra.utils.instantiate(cfg)
-    train_dataset: UmiLazyDataset = instantiated_cfg
+    # train_dataset: UmiLazyDataset = instantiated_cfg
+    train_dataset: UmiMultiDataset = instantiated_cfg
     val_dataset = train_dataset.split_unused_episodes(
         remaining_ratio=1.0, other_used_episode_indices=[]
     )

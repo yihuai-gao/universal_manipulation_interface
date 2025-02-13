@@ -93,11 +93,12 @@ class DataMeta:
             )
 
 
-def construct_data_meta(data_meta: Union[dict[str, dict[str, Any]], DictConfig]) -> dict[str, DataMeta]:
+def construct_data_meta(
+    data_meta: Union[dict[str, dict[str, Any]], DictConfig],
+) -> dict[str, DataMeta]:
     if isinstance(data_meta, DictConfig):
         data_meta = cast(
-            dict[str, dict[str, Any]],
-            OmegaConf.to_container(data_meta, resolve=True)
+            dict[str, dict[str, Any]], OmegaConf.to_container(data_meta, resolve=True)
         )
     data_meta_dict = {}
     for name, entry_meta_dict in data_meta.items():
@@ -105,17 +106,21 @@ def construct_data_meta(data_meta: Union[dict[str, dict[str, Any]], DictConfig])
         data_meta_dict[name] = DataMeta(**entry_meta_dict)
     return data_meta_dict
 
-def construct_source_data_meta(source_data_meta: Union[dict[str, dict[str, Any]], DictConfig]) -> dict[str, SourceDataMeta]:
+
+def construct_source_data_meta(
+    source_data_meta: Union[dict[str, dict[str, Any]], DictConfig],
+) -> dict[str, SourceDataMeta]:
     if isinstance(source_data_meta, DictConfig):
         source_data_meta = cast(
             dict[str, dict[str, Any]],
-            OmegaConf.to_container(source_data_meta, resolve=True)
+            OmegaConf.to_container(source_data_meta, resolve=True),
         )
     source_data_meta_dict = {}
     for name, entry_meta_dict in source_data_meta.items():
         entry_meta_dict.update({"name": name})
         source_data_meta_dict[name] = SourceDataMeta(**entry_meta_dict)
     return source_data_meta_dict
+
 
 class SingleFieldLinearNormalizer(nn.Module):
     def __init__(self, meta: DataMeta):
@@ -130,7 +135,9 @@ class SingleFieldLinearNormalizer(nn.Module):
 
     def from_dict(
         self,
-        state_dict: dict[str, Union[torch.Tensor, npt.NDArray[np.float32], list[float]]],
+        state_dict: dict[
+            str, Union[torch.Tensor, npt.NDArray[np.float32], list[float]]
+        ],
     ):
         if self.normalizer_type == "identity":
             return
@@ -303,7 +310,10 @@ class FixedNormalizer(nn.Module):
         self,
         state_dict: dict[
             str,
-            dict[str, dict[str, Union[torch.Tensor, npt.NDArray[np.float32], list[float]]]],
+            dict[
+                str,
+                dict[str, Union[torch.Tensor, npt.NDArray[np.float32], list[float]]],
+            ],
         ],
     ):
         for meta in self.data_meta.values():
@@ -360,6 +370,7 @@ class BaseLazyDataset(Dataset[batch_type]):
     def __init__(
         self,
         zarr_path: str,
+        name: str,
         include_episode_num: int,
         include_episode_indices: list[int],
         used_episode_ratio: float,
@@ -375,6 +386,9 @@ class BaseLazyDataset(Dataset[batch_type]):
     ):
 
         self.zarr_path: str = zarr_path
+        if name == "":
+            name = zarr_path.split("/")[-1].split(".")[0]
+        self.name: str = name
 
         self.include_episode_num: int = include_episode_num
         self.include_episode_indices: list[int] = include_episode_indices
@@ -387,7 +401,6 @@ class BaseLazyDataset(Dataset[batch_type]):
         self.dataloader_cfg: dict[str, Any] = dataloader_cfg
         self.starting_percentile_max: float = starting_percentile_max
         self.starting_percentile_min: float = starting_percentile_min
-
         zarr_store = zarr.open(self.zarr_path, mode="r")
         assert isinstance(
             zarr_store, zarr.Group
@@ -395,18 +408,28 @@ class BaseLazyDataset(Dataset[batch_type]):
         self.zarr_store: zarr.Group = zarr_store
 
         assert len(source_data_meta) > 0, "source_data_meta is empty."
-        self.source_data_meta: dict[str, SourceDataMeta] = construct_source_data_meta(source_data_meta)
+        self.source_data_meta: dict[str, SourceDataMeta] = construct_source_data_meta(
+            source_data_meta
+        )
 
         assert len(output_data_meta) > 0, "output_data_meta is empty."
-        self.output_data_meta: dict[str, DataMeta] = construct_data_meta(output_data_meta)
+        self.output_data_meta: dict[str, DataMeta] = construct_data_meta(
+            output_data_meta
+        )
 
         self.max_history_length: int = max(
             0,
-            -min(entry_meta.include_indices[0] for entry_meta in self.source_data_meta.values()),
+            -min(
+                entry_meta.include_indices[0]
+                for entry_meta in self.source_data_meta.values()
+            ),
         )
         self.max_future_length: int = max(
             0,
-            max(entry_meta.include_indices[-1] for entry_meta in self.source_data_meta.values()),
+            max(
+                entry_meta.include_indices[-1]
+                for entry_meta in self.source_data_meta.values()
+            ),
         )
         self.history_padding_length: int = history_padding_length
         self.future_padding_length: int = future_padding_length
@@ -426,6 +449,7 @@ class BaseLazyDataset(Dataset[batch_type]):
 
         self.store_episode_num: int
         self.used_episode_indices: list[int]
+        self.used_episode_num: int
 
         self.episode_valid_indices_min: dict[int, int]
         self.episode_valid_indices_max: dict[int, int]
@@ -439,13 +463,12 @@ class BaseLazyDataset(Dataset[batch_type]):
         self.transforms: dict[str, list[Callable[[torch.Tensor], torch.Tensor]]] = {}
         self._register_transforms()
 
-
     def _check_data_validity(self):
         raise NotImplementedError("This method should be implemented in subclasses.")
 
     def _create_index_pool(self):
         self.index_pool = []
-        for episode_idx in range(self.store_episode_num):
+        for episode_idx in range(self.include_episode_num):
             if episode_idx not in self.used_episode_indices:
                 continue
 
@@ -474,6 +497,51 @@ class BaseLazyDataset(Dataset[batch_type]):
             indices = np.sort(indices)
             for index in indices:
                 self.index_pool.append((episode_idx, index))
+
+    def _update_episode_indices(self):
+
+        if len(self.include_episode_indices) > 0:
+            print(
+                f"Dataset {self.name}: Using specified episode indices: {self.include_episode_indices}."
+            )
+            self.include_episode_num: int = len(self.include_episode_indices)
+            for episode_idx in self.include_episode_indices:
+                assert (
+                    episode_idx < self.store_episode_num
+                ), f"episode_idx {episode_idx} is out of range. Max is {self.store_episode_num}."
+        else:
+            if self.include_episode_num > 0:
+                assert (
+                    self.include_episode_num <= self.store_episode_num
+                ), f"include_episode_num {self.include_episode_num} is greater than the number of episodes {self.store_episode_num}."
+                self.include_episode_indices = self.rng.choice(
+                    self.store_episode_num, size=self.include_episode_num, replace=False
+                ).tolist()
+                print(
+                    f"Dataset {self.name}: Using {self.include_episode_num} episodes from {self.store_episode_num} episodes: {self.include_episode_indices}"
+                )
+            elif self.include_episode_num == -1:
+                self.include_episode_num = self.store_episode_num
+                self.include_episode_indices = list(range(self.include_episode_num))
+                print(
+                    f"Dataset {self.name}: Using all {self.include_episode_num} episodes from {self.store_episode_num}"
+                )
+            else:
+                raise ValueError(
+                    f"include_episode_num {self.include_episode_num} is invalid. Must be -1 or a positive integer."
+                )
+
+        self.include_episode_indices = sorted(self.include_episode_indices)
+
+        self.used_episode_indices: list[int] = cast(
+            list[int],
+            self.rng.choice(
+                self.include_episode_num,
+                size=int(self.include_episode_num * self.used_episode_ratio),
+                replace=False,
+            ).tolist(),
+        )
+        self.used_episode_num: int = len(self.used_episode_indices)
 
     def split_unused_episodes(
         self,
@@ -504,11 +572,13 @@ class BaseLazyDataset(Dataset[batch_type]):
                 replace=False,
             ).tolist(),
         )
-        unused_dataset.used_episode_ratio = len(unused_dataset.used_episode_indices) / len(unused_dataset.include_episode_indices)
+        unused_dataset.used_episode_ratio = len(
+            unused_dataset.used_episode_indices
+        ) / len(unused_dataset.include_episode_indices)
         unused_dataset._check_data_validity()
         unused_dataset._create_index_pool()
         return unused_dataset
-    
+
     def get_dataloader(self):
         return DataLoader(self, **self.dataloader_cfg)
 
@@ -536,7 +606,9 @@ class BaseLazyDataset(Dataset[batch_type]):
 
         return self.normalizer
 
-    def process_image_data(self, data: Union[torch.Tensor, npt.NDArray[Any]]) -> torch.Tensor:
+    def process_image_data(
+        self, data: Union[torch.Tensor, npt.NDArray[Any]]
+    ) -> torch.Tensor:
         if isinstance(data, np.ndarray):
             data = torch.from_numpy(data)
         if (
@@ -548,7 +620,7 @@ class BaseLazyDataset(Dataset[batch_type]):
             return data.float() / 255.0
         else:
             return data.float()
-        
+
     def _register_transforms(self):
         for entry_meta in self.output_data_meta.values():
             self.transforms[entry_meta.name] = []
@@ -562,9 +634,7 @@ class BaseLazyDataset(Dataset[batch_type]):
                 transform_cls = T.__dict__[aug_name]
                 self.transforms[entry_meta.name].append(transform_cls(**aug_cfg))
 
-    def augment_data(
-        self, data_name: str, data: torch.Tensor
-    ) -> torch.Tensor:
+    def augment_data(self, data_name: str, data: torch.Tensor) -> torch.Tensor:
         for transform in self.transforms[data_name]:
             data = transform(data)
         return data

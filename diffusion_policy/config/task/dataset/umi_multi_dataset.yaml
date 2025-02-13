@@ -1,18 +1,19 @@
 defaults:
-  - umi_lasy_dataset
+  - umi_lazy_dataset
   - _self_
 
 _target_: diffusion_policy.dataset.umi_multi_dataset.UmiMultiDataset
 
 dataset_root_dir: ???
+used_episode_indices_file: ""
 
-dataset_config:
+dataset_configs:
   cup_arrangement_0:
-    used_episode_num: 500
+    include_episode_num: 500
   towel_folding_0:
-    used_episode_num: 500
+    include_episode_num: 500
   mouse_arrangement_0:
-    used_episode_num: 500
+    include_episode_num: 500
 
 zarr_path: "" # Will be overridden in the initialization function
   

@@ -21,6 +21,7 @@ import pickle
 import tqdm
 import numpy as np
 import shutil
+from diffusion_policy.dataset.umi_multi_dataset import UmiMultiDataset
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_unet_image_policy import DiffusionUnetImagePolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset, BaseDataset
@@ -132,7 +133,7 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
         # normalizer = pickle.load(open(normalizer_path, 'rb'))
 
         # configure validation dataset
-        if isinstance(dataset, UmiLazyDataset):
+        if isinstance(dataset, UmiLazyDataset) or isinstance(dataset, UmiMultiDataset):
             val_dataset = dataset.split_unused_episodes()
         else:
             val_dataset = dataset.get_validation_dataset()
