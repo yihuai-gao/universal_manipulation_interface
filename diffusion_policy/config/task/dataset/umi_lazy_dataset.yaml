@@ -15,7 +15,7 @@ index_pool_size_per_episode: -1 # -1 means using all indices
 seed: 42
 use_relative_pose: true
 down_sample_steps: 3
-apply_augmentation_in_cpu: False
+apply_augmentation_in_cpu: True
 mask_mirror: False
 
 source_data_meta:
@@ -117,7 +117,7 @@ output_data_meta:
   
 dataloader_cfg:
   batch_size: 192
-  num_workers: 24
+  num_workers: 48
   shuffle: True
   pin_memory: True
   persistent_workers: True

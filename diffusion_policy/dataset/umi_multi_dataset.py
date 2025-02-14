@@ -86,6 +86,8 @@ class UmiMultiDataset(Dataset[batch_type]):
         """
         self._create_index_pool()
 
+
+
     def _create_index_pool(self):
         self.index_pool = []
         for dataset_idx, dataset in enumerate(self.datasets):
@@ -123,3 +125,7 @@ class UmiMultiDataset(Dataset[batch_type]):
     def transforms(self):
         """Return the transforms of the first dataset. Assuming all datasets have the same transforms."""
         return self.datasets[0].transforms
+    
+    @property
+    def apply_augmentation_in_cpu(self):
+        return self.datasets[0].apply_augmentation_in_cpu

@@ -52,7 +52,7 @@ which python
 set -e
 
 additional_arguments=""
-additional_arguments="$additional_arguments task.dataset.dataloader_cfg.num_workers=48 task.dataset.dataloader_cfg.batch_size=288"
+additional_arguments="$additional_arguments task.dataset.dataloader_cfg.num_workers=48 task.dataset.dataloader_cfg.batch_size=192"
 
 # $python_path scripts/extract_umi_data.py cup_arrangement_0,towel_folding_0,mouse_arrangement_0 --data_dir /scratch/m000073/uva/umi_data/lz4
 # echo "Data extracted"

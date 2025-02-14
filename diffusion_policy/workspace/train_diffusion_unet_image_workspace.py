@@ -209,6 +209,7 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
             self.ema_model.to(device)
 
         if hasattr(dataset, "apply_augmentation_in_cpu") and not dataset.apply_augmentation_in_cpu:
+            print("Using GPU for augmentation")
             transforms = dataset.transforms
             transforms.to(device)
         else:
