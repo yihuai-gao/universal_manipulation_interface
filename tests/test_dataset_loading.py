@@ -4,7 +4,7 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(ROOT_DIR)
 
-# from diffusion_policy.dataset.umi_lazy_dataset import UmiLazyDataset
+from diffusion_policy.dataset.umi_lazy_dataset import UmiLazyDataset
 from diffusion_policy.dataset.umi_multi_dataset import UmiMultiDataset
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -21,8 +21,8 @@ def main(cfg: DictConfig):
     
     
     instantiated_cfg = hydra.utils.instantiate(cfg)
-    # train_dataset: UmiLazyDataset = instantiated_cfg
-    train_dataset: UmiMultiDataset = instantiated_cfg
+    train_dataset: UmiLazyDataset = instantiated_cfg
+    # train_dataset: UmiMultiDataset = instantiated_cfg
     val_dataset = train_dataset.split_unused_episodes(
         remaining_ratio=1.0, other_used_episode_indices=[]
     )
@@ -50,18 +50,35 @@ def main(cfg: DictConfig):
     # for key, value in obs_data.items():
     #     print(key, value.shape)
     # print("action", train_dataset[0]["action"].shape)
-    for i in range(10000):
-        print(train_dataset[i]["obs"]["camera0_rgb"].shape)
+    image_dir = "/scratch/m000073/yihuai/robotics/repositories/policies/imitation-learning-policies/prior_works/universal_manipulation_interface/data/test/"
+    os.makedirs(image_dir, exist_ok=True)
+    # for i in range(10000):
+    #     # print(train_dataset[i]["obs"]["camera0_rgb"].shape)
         
         
-        # camera0_rgb = train_dataset[i]["obs"]["camera0_rgb"]
-        # concat_img = torch.cat([camera0_rgb[0], camera0_rgb[1]], dim=2)
-        # img = concat_img.numpy().transpose(1, 2, 0)*255.0
-        # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR).astype(np.uint8)
-        # print(img.shape)
-        # cv2.imwrite(f"/scratch/m000073/yihuai/robotics/repositories/policies/imitation-learning-policies/prior_works/universal_manipulation_interface/data/test/test_dataset_loading_{i}.png", img)
-        # cv2.waitKey(0)
-        # time.sleep(1)
+    #     camera0_rgb = train_dataset[i]["obs"]["camera0_rgb"]
+    #     concat_img = torch.cat([camera0_rgb[0], camera0_rgb[1]], dim=2)
+    #     img = concat_img.numpy().transpose(1, 2, 0)*255.0
+    #     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR).astype(np.uint8)
+    #     print(img.shape)
+    #     cv2.imwrite(f"{image_dir}/test_dataset_loading_{i}.png", img)
+    #     cv2.waitKey(0)
+    #     time.sleep(1)
+
+    dataloader = train_dataset.get_dataloader()
+    transforms = train_dataset.transforms
+    for batch in dataloader:
+        batch = transforms.apply(batch)
+        camera0_rgb = batch["obs"]["camera0_rgb"]
+        for i in range(camera0_rgb.shape[0]):
+            concat_img = torch.cat([camera0_rgb[i][0], camera0_rgb[i][1]], dim=2)
+            img = concat_img.numpy().transpose(1, 2, 0)*255.0
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR).astype(np.uint8)
+            cv2.imwrite(f"{image_dir}/test_dataset_loading_{i}.png", img)
+            cv2.waitKey(0)
+            time.sleep(1)
+        break
+
 
     
 

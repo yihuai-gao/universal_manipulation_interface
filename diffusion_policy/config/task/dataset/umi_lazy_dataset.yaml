@@ -15,6 +15,7 @@ index_pool_size_per_episode: -1 # -1 means using all indices
 seed: 42
 use_relative_pose: true
 down_sample_steps: 3
+apply_augmentation_in_cpu: False
 
 source_data_meta:
   camera0_rgb:
@@ -117,5 +118,5 @@ dataloader_cfg: # This is not used
   batch_size: 64
   num_workers: 8
   shuffle: True
-  pin_memory: False # the dataset is already stored in memory
+  pin_memory: True
   persistent_workers: True

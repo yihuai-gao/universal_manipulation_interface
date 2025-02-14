@@ -32,7 +32,6 @@ from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy.model.diffusion.ema_model import EMAModel
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
 from accelerate import Accelerator
-
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
 class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
@@ -120,6 +119,8 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
         # assert isinstance(dataset, BaseImageDataset) or isinstance(dataset, BaseDataset)
         # assert isinstance(dataset, UmiLazyDataset)
 
+
+
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
 
         # # compute normalizer on the main process and save to disk
@@ -205,6 +206,12 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
         if self.ema_model is not None:
             self.ema_model.to(device)
 
+        if hasattr(dataset, "apply_augmentation_in_cpu") and not dataset.apply_augmentation_in_cpu:
+            transforms = dataset.transforms
+            transforms.to(device)
+        else:
+            transforms = None
+
         # save batch for sampling
         train_sampling_batch = None
 
@@ -235,6 +242,8 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                        if transforms is not None:
+                            batch = transforms.apply(batch)
                         
                         # always use the latest batch
                         train_sampling_batch = batch

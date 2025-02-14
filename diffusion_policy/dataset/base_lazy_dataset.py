@@ -16,6 +16,7 @@ from torch import nn
 batch_type = dict[str, Union[dict[str, torch.Tensor], torch.Tensor]]
 torch.set_num_threads(1)
 
+
 @dataclass
 class SourceDataMeta:
     name: str
@@ -362,6 +363,55 @@ class FixedNormalizer(nn.Module):
         return state_dict
 
 
+class BaseTransforms:
+    def __init__(self, data_meta: dict[str, DataMeta]):
+        self.transforms: dict[str, K.VideoSequential] = {}
+        self.data_meta: dict[str, DataMeta] = data_meta
+
+        for entry_meta in data_meta.values():
+            transforms_list = []
+            for aug_cfg in entry_meta.augmentation:
+                aug_name = aug_cfg["name"]
+                if aug_name not in K.__dict__:
+                    raise ValueError(
+                        f"Augmentation {aug_name} not found in kornia.augmentation. Please implement your own augmentation method."
+                    )
+                aug_cfg.pop("name")
+                transform_cls = K.__dict__[aug_name]
+                transforms_list.append(transform_cls(**aug_cfg))
+            if len(transforms_list) > 0:
+                self.transforms[entry_meta.name] = K.VideoSequential(*transforms_list)
+
+    def to(self, device: Union[torch.device, str]):
+        for transform in self.transforms.values():
+            transform.to(device)
+
+    def apply(self, data_dict: dict[str, Any]) -> dict[str, Any]:
+        for name, data in data_dict.items():
+            if isinstance(data, dict):
+                data_dict[name] = self.apply(data)
+            elif isinstance(data, torch.Tensor):
+                if name in self.transforms:
+                    data_dim_num = len(self.data_meta[name].shape)
+                    data_shape = data.shape
+                    new_data_dim_num = len(data.shape)
+                    assert (
+                        data.shape[-data_dim_num:] == self.data_meta[name].shape
+                    ), f"Data {name} shape {data.shape} does not match meta shape {self.data_meta[name].shape}"
+                    if new_data_dim_num - data_dim_num == 1:
+                        data = data.unsqueeze(0)
+                    elif new_data_dim_num - data_dim_num != 2:
+                        raise ValueError(
+                            f"Data {name} has more than 2 additional dimensions: {data.shape}. Currently only support (traj_len, *shape) or (batch_size, traj_len, *shape)."
+                        )
+                    data = self.transforms[name](data)
+                    data_dict[name] = data.reshape(data_shape)
+
+            else:
+                raise ValueError(f"Unknown data type {type(data)} for {name}")
+        return data_dict
+
+
 class BaseLazyDataset(Dataset[batch_type]):
     """
     Base class for all datasets.
@@ -383,6 +433,7 @@ class BaseLazyDataset(Dataset[batch_type]):
         dataloader_cfg: dict[str, Any],
         starting_percentile_max: float,
         starting_percentile_min: float,
+        apply_augmentation_in_cpu: bool,
     ):
 
         self.zarr_path: str = zarr_path
@@ -401,6 +452,8 @@ class BaseLazyDataset(Dataset[batch_type]):
         self.dataloader_cfg: dict[str, Any] = dataloader_cfg
         self.starting_percentile_max: float = starting_percentile_max
         self.starting_percentile_min: float = starting_percentile_min
+        self.apply_augmentation_in_cpu: bool = apply_augmentation_in_cpu
+
         zarr_store = zarr.open(self.zarr_path, mode="r")
         assert isinstance(
             zarr_store, zarr.Group
@@ -460,8 +513,7 @@ class BaseLazyDataset(Dataset[batch_type]):
         Each item contains a tuple of (episode_idx, index), where index means the 0 index of this trajectory in an episode.
         """
 
-        self.transforms: dict[str, K.AugmentationSequential] = {}
-        self._register_transforms()
+        self.transforms: BaseTransforms = BaseTransforms(self.output_data_meta)
 
     def _check_data_validity(self):
         raise NotImplementedError("This method should be implemented in subclasses.")
@@ -606,9 +658,7 @@ class BaseLazyDataset(Dataset[batch_type]):
 
         return self.normalizer
 
-    def process_image_data(
-        self, data: npt.NDArray[Any]
-    ) -> npt.NDArray[np.float32]:
+    def process_image_data(self, data: npt.NDArray[Any]) -> npt.NDArray[np.float32]:
         if (
             data.shape[-1] <= 4
         ):  # (..., H, W, C) where the color dimension is usually a small number (1 (grayscale), 3 (RGB), or 4 (RGBD))
@@ -617,44 +667,6 @@ class BaseLazyDataset(Dataset[batch_type]):
         if data.dtype == np.uint8:
             return (data / 255.0).astype(np.float32)
         return data.astype(np.float32)
-
-
-    # def process_image_data(
-    #     self, data: Union[torch.Tensor, npt.NDArray[Any]]
-    # ) -> torch.Tensor:
-    #     if isinstance(data, np.ndarray):
-    #         data = torch.from_numpy(data)
-    #     if (
-    #         data.shape[-1] <= 4
-    #     ):  # (..., H, W, C) where the color dimension is usually a small number (1 (grayscale), 3 (RGB), or 4 (RGBD))
-    #         dims = len(data.shape)
-    #         data = data.permute((*range(dims - 3), -1, -3, -2))  # (..., C, H, W)
-    #     if data.dtype == torch.uint8:
-    #         return data.float() / 255.0
-    #     else:
-    #         return data.float()
-
-
-    def _register_transforms(self):
-        for entry_meta in self.output_data_meta.values():
-            transforms_list = []
-            for aug_cfg in entry_meta.augmentation:
-                aug_name = aug_cfg["name"]
-                if aug_name not in K.__dict__:
-                    raise ValueError(
-                        f"Augmentation {aug_name} not found in kornia.augmentation. Please implement your own augmentation method."
-                    )
-                aug_cfg.pop("name")
-                transform_cls = K.__dict__[aug_name]
-                transforms_list.append(transform_cls(**aug_cfg))
-            if len(transforms_list) > 0:
-                self.transforms[entry_meta.name] = K.AugmentationSequential(*transforms_list, same_on_batch=True)
-
-    def augment_data(self, data_name: str, data: torch.Tensor) -> torch.Tensor:
-        if data_name not in self.transforms:
-            return data
-        return self.transforms[data_name](data)
-
 
     def __len__(self) -> int:
         return len(self.index_pool)

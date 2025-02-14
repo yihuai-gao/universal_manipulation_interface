@@ -13,6 +13,7 @@ from diffusion_policy.codecs.imagecodecs_numcodecs import register_codecs, JpegX
 
 register_codecs()
 
+
 class UmiLazyDataset(BaseLazyDataset):
     """
     Dataset loader for the official UMI dataset.
@@ -252,14 +253,10 @@ class UmiLazyDataset(BaseLazyDataset):
             ]
             global_indices = [start_idx + i for i in indices]
 
-            if entry_meta.name == "camera0_rgb": # Debug: get the data retreival time for image specifically
-                source_data_dict[entry_meta.name] = np.array(
-                    self.data_store[entry_meta.name][global_indices]
-                )
-            else:
-                source_data_dict[entry_meta.name] = np.array(
-                    self.data_store[entry_meta.name][global_indices]
-                )
+            
+            source_data_dict[entry_meta.name] = np.array(
+                self.data_store[entry_meta.name][global_indices]
+            )
 
         processed_data_dict = self._process_source_data(source_data_dict)
 
@@ -282,7 +279,10 @@ class UmiLazyDataset(BaseLazyDataset):
                 *entry_meta.shape,
             ), f"entry_meta: {entry_meta.name}, processed_data.shape: {processed_data.shape}, entry_meta.length: {entry_meta.length}, entry_meta.shape: {entry_meta.shape}"
 
-            output_data_dict[entry_meta.usage][entry_meta.name] = self.augment_data(entry_meta.name, processed_data)
+            output_data_dict[entry_meta.usage][entry_meta.name] = processed_data
+
+        if self.apply_augmentation_in_cpu:
+            output_data_dict = self.transforms.apply(output_data_dict)
 
         if self.normalizer is not None:
             output_data_dict = self.normalizer.normalize(output_data_dict)

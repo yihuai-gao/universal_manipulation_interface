@@ -2,7 +2,7 @@ import json
 import os
 from typing import Any, Dict, Optional, Union, cast
 from omegaconf import DictConfig, OmegaConf
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 from diffusion_policy.dataset.base_lazy_dataset import BaseLazyDataset, batch_type
 from diffusion_policy.dataset.umi_lazy_dataset import UmiLazyDataset
@@ -114,3 +114,6 @@ class UmiMultiDataset(Dataset[batch_type]):
         unused_dataset._create_index_pool()
 
         return unused_dataset
+
+    def get_dataloader(self):
+        return DataLoader(self, self.base_config["dataloader_cfg"])
