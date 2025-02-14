@@ -121,7 +121,6 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
 
 
 
-        train_dataloader = DataLoader(dataset, **cfg.dataloader)
 
         # # compute normalizer on the main process and save to disk
         # normalizer_path = os.path.join(self.output_dir, 'normalizer.pkl')
@@ -135,10 +134,13 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
 
         # configure validation dataset
         if isinstance(dataset, UmiLazyDataset) or isinstance(dataset, UmiMultiDataset):
+            train_dataloader = dataset.get_dataloader()
             val_dataset = dataset.split_unused_episodes()
+            val_dataloader = val_dataset.get_dataloader()
         else:
+            train_dataloader = DataLoader(dataset, **cfg.dataloader)
             val_dataset = dataset.get_validation_dataset()
-        val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+            val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
         print('train dataset:', len(dataset), 'train dataloader:', len(train_dataloader))
         print('val dataset:', len(val_dataset), 'val dataloader:', len(val_dataloader))
 

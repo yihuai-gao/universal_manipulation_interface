@@ -168,7 +168,11 @@ def convert_zarr_codec(dataset_name: str, data_dir: str) -> None:
         else:
             chunk_size = (100, *source_data.shape[1:])
             data_array = target_data_group.create_dataset(key, shape=source_data.shape, chunks=chunk_size, dtype=source_data.dtype, compression=None)
-            data_array[:] = source_data[:]
+            chunk_size = 1000  # Adjust this based on your data size and system capabilities
+            num_chunks = (source_data.shape[0] + chunk_size - 1) // chunk_size
+            with mp.Pool(mp.cpu_count() - 4) as pool:
+                pool.starmap(copy_chunk, [(source_data, data_array, i * chunk_size, min((i + 1) * chunk_size, source_data.shape[0])) for i in range(num_chunks)])
+
 
 
 
@@ -181,9 +185,10 @@ if __name__ == "__main__":
 
     shm_data_dir = f"/dev/shm/{PROJECT_NAME}/umi_data"
     # convert_zarr_codec("cup_arrangement_1", f"{shm_data_dir}")
-    convert_datasets = ["cup_arrangement_1"]
+    # convert_datasets = ["mouse_arrangement_0"]
+    convert_datasets= ["cup_arrangement_0", "towel_folding_0"]
     for dataset_name in convert_datasets:
-        extract_data(dataset_name, f"{data_dir}/lz4_jpegxl", f"{shm_data_dir}/zarr/jpegxl")
-        convert_zarr_codec(dataset_name, f"{shm_data_dir}")
-        compress_data(dataset_name, f"{shm_data_dir}/zarr/lz4", f"{data_dir}/lz4")
+        # extract_data(dataset_name, f"{data_dir}/lz4_jpegxl", f"{shm_data_dir}/zarr/jpegxl")
+        convert_zarr_codec(dataset_name, f"{data_dir}")
+        # compress_data(dataset_name, f"{shm_data_dir}/zarr/lz4", f"{data_dir}/lz4")
         

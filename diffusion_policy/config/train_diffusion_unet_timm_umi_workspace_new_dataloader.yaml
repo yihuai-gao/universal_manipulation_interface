@@ -117,20 +117,6 @@ ema:
   min_value: 0.0
   max_value: 0.9999
 
-dataloader:
-  batch_size: 192
-  num_workers: 24
-  shuffle: True
-  pin_memory: True
-  persistent_workers: True
-
-val_dataloader:
-  batch_size: 192
-  num_workers: 24
-  shuffle: False
-  pin_memory: True
-  persistent_workers: True
-
 # dataloader:
 #   batch_size: 64
 #   num_workers: 16

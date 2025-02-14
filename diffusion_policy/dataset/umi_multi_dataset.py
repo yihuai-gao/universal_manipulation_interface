@@ -47,6 +47,7 @@ class UmiMultiDataset(Dataset[batch_type]):
                 dict[str, dict[str, Any]], OmegaConf.to_container(dataset_configs)
             )
         self.dataset_configs: dict[str, dict[str, Any]] = dataset_configs
+        assert len(self.dataset_configs.keys()) >= 1, "At least one dataset is required"
 
         if used_episode_indices_file != "":
             assert used_episode_indices_file.endswith(
@@ -116,4 +117,9 @@ class UmiMultiDataset(Dataset[batch_type]):
         return unused_dataset
 
     def get_dataloader(self):
-        return DataLoader(self, self.base_config["dataloader_cfg"])
+        return DataLoader(self, **self.base_config["dataloader_cfg"])
+
+    @property
+    def transforms(self):
+        """Return the transforms of the first dataset. Assuming all datasets have the same transforms."""
+        return self.datasets[0].transforms

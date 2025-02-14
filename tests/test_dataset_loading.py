@@ -14,8 +14,8 @@ OmegaConf.register_new_resolver("eval", eval)
 
 @hydra.main(
     config_path="../diffusion_policy/config/task/dataset",
-    config_name="umi_lazy_dataset",
-    # config_name="umi_multi_dataset"
+    # config_name="umi_lazy_dataset",
+    config_name="umi_multi_dataset"
 )
 def main(cfg: DictConfig):
     
@@ -76,7 +76,8 @@ def main(cfg: DictConfig):
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR).astype(np.uint8)
             cv2.imwrite(f"{image_dir}/test_dataset_loading_{i}.png", img)
             cv2.waitKey(0)
-            time.sleep(1)
+            time.sleep(0.1)
+            print(batch["obs"]["camera0_rgb"].shape)
         break
 
 

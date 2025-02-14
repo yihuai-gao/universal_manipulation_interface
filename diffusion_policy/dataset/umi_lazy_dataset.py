@@ -7,6 +7,7 @@ import torch
 import numpy.typing as npt
 
 from diffusion_policy.dataset.base_lazy_dataset import BaseLazyDataset
+from umi.common.cv_util import draw_predefined_mask
 from umi.common.pose_util import pose_to_mat, mat_to_pose10d
 from diffusion_policy.common.pose_repr_util import convert_pose_mat_rep
 from diffusion_policy.codecs.imagecodecs_numcodecs import register_codecs, JpegXl
@@ -31,7 +32,12 @@ class UmiLazyDataset(BaseLazyDataset):
     """
 
     def __init__(
-        self, robot_num: int, use_relative_pose: bool, down_sample_steps: int, **kwargs
+        self,
+        robot_num: int,
+        use_relative_pose: bool,
+        down_sample_steps: int,
+        mask_mirror: bool,
+        **kwargs,
     ):
 
         self.down_sample_steps: int = down_sample_steps
@@ -62,6 +68,7 @@ class UmiLazyDataset(BaseLazyDataset):
             self.zarr_store["meta"]["episode_ends"]
         )
         self.store_episode_num: int = len(self.episode_ends)
+        self.mask_mirror: bool = mask_mirror
 
         self._update_episode_indices()
 
@@ -148,7 +155,16 @@ class UmiLazyDataset(BaseLazyDataset):
             if f"camera{i}_rgb" in data_dict:
                 processed_data_dict[f"camera{i}_rgb"] = data_dict[
                     f"camera{i}_rgb"
-                ]  # TODO: adjust the frames needed
+                ]  # TODO: adjust the frames needed (e.g. random sampling)
+                if self.mask_mirror:
+                    for j in range(processed_data_dict[f"camera{i}_rgb"].shape[0]):
+                        processed_data_dict[f"camera{i}_rgb"][j] = draw_predefined_mask(
+                            processed_data_dict[f"camera{i}_rgb"][j],
+                            mirror=True,
+                            gripper=False,
+                            finger=False,
+                            use_aa=True,
+                        )
 
             processed_data_dict[f"robot{i}_gripper_width"] = data_dict[
                 f"robot{i}_gripper_width"
@@ -253,7 +269,6 @@ class UmiLazyDataset(BaseLazyDataset):
             ]
             global_indices = [start_idx + i for i in indices]
 
-            
             source_data_dict[entry_meta.name] = np.array(
                 self.data_store[entry_meta.name][global_indices]
             )
