@@ -1,16 +1,21 @@
 defaults:
-  - _self_
   - task: umi
   - override task/dataset: umi_lazy_dataset
+  - _self_
   # - override task/dataset: umi_multi_dataset
 
 name: train_diffusion_unet_timm
 _target_: diffusion_policy.workspace.train_diffusion_unet_image_workspace.TrainDiffusionUnetImageWorkspace
 
+task:
+  img_obs_horizon: 1
+
 task_name: ${task.name}
 run_name: ""
 shape_meta: ${task.shape_meta}
 exp_name: "default"
+
+
 
 n_action_steps: 8
 

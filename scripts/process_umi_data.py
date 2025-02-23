@@ -178,7 +178,7 @@ def convert_zarr_codec(dataset_name: str, data_dir: str) -> None:
 
 if __name__ == "__main__":
     # Download the data
-    data_dir = "/scratch/m000073/uva/umi_data"
+    # data_dir = "/scratch/m000073/uva/umi_data"
     # num_processes = mp.cpu_count()
     # with mp.Pool(num_processes) as pool:
     #     pool.starmap(process_dataset, [(dataset_name, url, data_dir) for dataset_name, url in DATASETS.items()])
@@ -186,9 +186,9 @@ if __name__ == "__main__":
     shm_data_dir = f"/dev/shm/{PROJECT_NAME}/umi_data"
     # convert_zarr_codec("cup_arrangement_1", f"{shm_data_dir}")
     # convert_datasets = ["mouse_arrangement_0"]
-    convert_datasets= ["cup_arrangement_0", "towel_folding_0"]
+    convert_datasets= ["cup_arrangement_0", "towel_folding_0", "mouse_arrangement_0"]
     for dataset_name in convert_datasets:
         # extract_data(dataset_name, f"{data_dir}/lz4_jpegxl", f"{shm_data_dir}/zarr/jpegxl")
-        convert_zarr_codec(dataset_name, f"{data_dir}")
+        convert_zarr_codec(dataset_name, f"{shm_data_dir}")
         # compress_data(dataset_name, f"{shm_data_dir}/zarr/lz4", f"{data_dir}/lz4")
         

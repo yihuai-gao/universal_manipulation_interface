@@ -2,6 +2,7 @@ import json
 import os
 from typing import Any, Dict, Optional, Union, cast
 from omegaconf import DictConfig, OmegaConf
+import torch
 from torch.utils.data import DataLoader, Dataset
 
 from diffusion_policy.dataset.base_lazy_dataset import BaseLazyDataset, batch_type
@@ -109,10 +110,11 @@ class UmiMultiDataset(Dataset[batch_type]):
         unused_dataset.index_pool = []
         unused_dataset.datasets = []
         for dataset_idx, dataset in enumerate(self.datasets):
+            unused_single_dataset = dataset.split_unused_episodes(
+                remaining_ratio, other_used_episode_indices
+            )
             unused_dataset.datasets.append(
-                dataset.split_unused_episodes(
-                    remaining_ratio, other_used_episode_indices
-                )
+                unused_single_dataset
             )
         unused_dataset._create_index_pool()
 
@@ -129,3 +131,9 @@ class UmiMultiDataset(Dataset[batch_type]):
     @property
     def apply_augmentation_in_cpu(self):
         return self.datasets[0].apply_augmentation_in_cpu
+    
+    def set_datasets_attribute(self, attribute_name: str, attribute_value: Any):
+        for dataset in self.datasets:
+            setattr(dataset, attribute_name, attribute_value)
+        if attribute_name in self.base_config:
+            self.base_config[attribute_name] = attribute_value

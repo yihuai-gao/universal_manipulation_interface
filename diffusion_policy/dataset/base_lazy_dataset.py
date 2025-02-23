@@ -520,9 +520,7 @@ class BaseLazyDataset(Dataset[batch_type]):
 
     def _create_index_pool(self):
         self.index_pool = []
-        for episode_idx in range(self.include_episode_num):
-            if episode_idx not in self.used_episode_indices:
-                continue
+        for episode_idx in self.used_episode_indices:
 
             valid_idx_min = self.episode_valid_indices_min[episode_idx]
             valid_idx_max = self.episode_valid_indices_max[episode_idx]
@@ -588,11 +586,12 @@ class BaseLazyDataset(Dataset[batch_type]):
         self.used_episode_indices: list[int] = cast(
             list[int],
             self.rng.choice(
-                self.include_episode_num,
+                self.include_episode_indices,
                 size=int(self.include_episode_num * self.used_episode_ratio),
                 replace=False,
             ).tolist(),
         )
+        self.used_episode_indices = sorted(self.used_episode_indices)
         self.used_episode_num: int = len(self.used_episode_indices)
 
     def split_unused_episodes(
@@ -629,6 +628,7 @@ class BaseLazyDataset(Dataset[batch_type]):
         ) / len(unused_dataset.include_episode_indices)
         unused_dataset._check_data_validity()
         unused_dataset._create_index_pool()
+        assert len(unused_dataset) >= 1, f"Splitted dataset {unused_dataset.name} has no data. Please check the used_data_ratio and the overall dataset size"
         return unused_dataset
 
     def get_dataloader(self):

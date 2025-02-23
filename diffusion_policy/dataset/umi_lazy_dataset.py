@@ -280,8 +280,7 @@ class UmiLazyDataset(BaseLazyDataset):
         output_data_dict["action"] = {}
 
         for entry_meta in self.output_data_meta.values():
-            if entry_meta.name not in processed_data_dict:
-                continue
+            assert entry_meta.name in processed_data_dict
             processed_data = processed_data_dict[entry_meta.name]
             if isinstance(processed_data, np.ndarray):
                 if entry_meta.data_type == "image":

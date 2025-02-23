@@ -9,13 +9,13 @@ used_episode_indices_file: ""
 
 dataset_configs:
   cup_arrangement_0:
-    include_episode_num: 500
+    include_episode_num: -1
     mask_mirror: True
   towel_folding_0:
-    include_episode_num: 500
+    include_episode_num: -1
     mask_mirror: False
   mouse_arrangement_0:
-    include_episode_num: 500
+    include_episode_num: -1
     mask_mirror: False
 
 zarr_path: "" # Will be overridden in the initialization function

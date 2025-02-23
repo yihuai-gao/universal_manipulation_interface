@@ -8,6 +8,7 @@ if __name__ == "__main__":
     os.chdir(ROOT_DIR)
 
 import os
+from typing import cast
 from diffusion_policy.dataset.umi_lazy_dataset import UmiLazyDataset
 import hydra
 import torch
@@ -31,7 +32,7 @@ from diffusion_policy.common.json_logger import JsonLogger
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy.model.diffusion.ema_model import EMAModel
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
-from accelerate import Accelerator
+from accelerate import Accelerator, DataLoaderConfiguration
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
 class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
@@ -92,12 +93,16 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
         cfg = copy.deepcopy(self.cfg)
         print(cfg.shape_meta)
 
+        accelerator_kwargs = dict()
+        accelerator_kwargs['log_with'] = 'wandb'
         if "mixed_precision" in cfg.training:
-            accelerator = Accelerator(log_with='wandb', mixed_precision=cfg.training.mixed_precision)
+            accelerator_kwargs['mixed_precision'] = cfg.training.mixed_precision
             print(f'using mixed precision: {cfg.training.mixed_precision}')
-        else:
-            accelerator = Accelerator(log_with='wandb')
-            
+        if "non_blocking" in cfg.training and cfg.training.non_blocking:
+            accelerator_kwargs['dataloader_config'] = DataLoaderConfiguration(
+                non_blocking=True
+            )
+        accelerator = Accelerator(**accelerator_kwargs)
         wandb_cfg = OmegaConf.to_container(cfg.logging, resolve=True)
         wandb_cfg.pop('project')
         accelerator.init_trackers(
@@ -210,11 +215,11 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
 
         if hasattr(dataset, "apply_augmentation_in_cpu") and not dataset.apply_augmentation_in_cpu:
             print("Using GPU for augmentation")
-            transforms = dataset.transforms
-            transforms.to(device)
+            gpu_transforms, transforms_stream = dataset.transforms.get_gpu_async_transforms(device)
+            transforms_stream = cast(torch.cuda.Stream, transforms_stream)
         else:
-            transforms = None
-
+            gpu_transforms = None
+            transforms_stream = None
         # save batch for sampling
         train_sampling_batch = None
 
@@ -229,6 +234,7 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
 
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
+        processed_batch = None
         with JsonLogger(log_path) as json_logger:
             for local_epoch_idx in range(cfg.training.num_epochs):
                 self.model.train()
@@ -244,15 +250,22 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
                         leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
-                        batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                        if transforms is not None:
-                            batch = transforms.apply(batch)
+                        # batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+
+                        if gpu_transforms is None:
+                            processed_batch = batch
+                        else:
+                            if processed_batch is None:
+                                processed_batch = gpu_transforms(batch)
+                                torch.cuda.current_stream().wait_stream(transforms_stream)
+                            else:
+                                processed_batch = gpu_transforms(batch)
                         
                         # always use the latest batch
-                        train_sampling_batch = batch
+                        train_sampling_batch = processed_batch
 
                         # compute loss
-                        raw_loss = self.model(batch)
+                        raw_loss = self.model(processed_batch)
                         loss = raw_loss / cfg.training.gradient_accumulate_every
                         loss.backward()
 
@@ -287,6 +300,13 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
                         if (cfg.training.max_train_steps is not None) \
                             and batch_idx >= (cfg.training.max_train_steps-1):
                             break
+
+                        if transforms_stream is not None:
+                            # transforms_stream.
+                            start_waiting_time = time.time()
+                            torch.cuda.current_stream().wait_stream(transforms_stream)
+                            end_waiting_time = time.time()
+                            print(f"Waiting time: {end_waiting_time - start_waiting_time} seconds")
 
                 # at the end of each epoch
                 # replace train_loss with epoch average
